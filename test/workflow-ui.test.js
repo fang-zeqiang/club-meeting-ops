@@ -19,7 +19,7 @@ test("More menu opens the compact bilingual product history", () => {
 
 test("workspace exposes lifecycle stages and task navigation", () => {
   for (const label of ["Preparation", "Live Execution", "Review"]) assert.ok(appSource.includes(label));
-  for (const task of ["Meeting details", "Build agenda", "Prepare voting", "Future posters", "Review & share", "Start voting", "Awards", "Meeting review"]) assert.match(appSource, new RegExp(task.replace(/[&]/g, "\\&")));
+  for (const task of ["Meeting details", "Build agenda", "Prepare voting", "Future posters", "Review & share", "Start voting", "Awards", "Meeting review"]) assert.ok(appSource.includes(task));
   assert.doesNotMatch(appSource, /Publication Check/);
   assert.doesNotMatch(appSource, /Preview & finalize/);
   assert.match(appSource, /data-stage=/);
