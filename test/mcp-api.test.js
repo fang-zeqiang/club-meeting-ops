@@ -294,6 +294,7 @@ test("OAuth metadata, PKCE exchange, refresh, and MCP bearer access work without
     headers: { authorization: `Bearer ${tokens.access_token}`, host: "agenda.example", "content-type": "application/json" },
   }), mcpResponse);
   assert.equal(mcpResponse.statusCode, 200);
+  assert.equal(mcpResponse.headers["x-content-type-options"], "nosniff");
 
   const refreshResponse = responseMock();
   await mcpHandler(request({
