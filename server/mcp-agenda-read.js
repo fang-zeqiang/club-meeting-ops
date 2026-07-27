@@ -440,7 +440,7 @@ export async function callAgendaReadTool(name, rawArguments, baseUrl) {
       `${copy.vacancies} · #${meeting.meetingNumber}`,
       `${meeting.date || "日期未定"} ${meeting.startTime || ""} · ${meeting.theme || "主题未定"}`.trim(),
       "",
-      ...(vacancies.total ? [...vacancies.support, ...vacancies.roles, ...vacancies.speakers, ...vacancies.evaluators].map(({ label }) => `${vacancyEmoji.repeat(vacancyEmojiCount)} ${label}`) : [copy.none]),
+      ...(vacancies.total ? [...vacancies.support, ...vacancies.roles, ...vacancies.speakers, ...vacancies.evaluators].slice(0, 100).map(({ label }) => `${vacancyEmoji.repeat(vacancyEmojiCount)} ${label}`) : [copy.none]),
     ].join("\n");
     return { data: { meetingNumber: meeting.meetingNumber, vacancies, text }, message: text };
   }

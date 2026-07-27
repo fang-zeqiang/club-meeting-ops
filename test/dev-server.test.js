@@ -7,9 +7,11 @@ import { requestOrigin } from "../api/meetings/[id].js";
 import mcpHandler from "../server/mcp.js";
 import templateHandler from "../api/templates/[id].js";
 import { matchApiRoute } from "../server/dev.js";
+import { readJson } from "../server/http.js";
 
 const meetingApiSource = await readFile(new URL("../api/meetings/[id].js", import.meta.url), "utf8");
 const awardsApiSource = await readFile(new URL("../api/meetings/[id]/awards.js", import.meta.url), "utf8");
+const httpSource = await readFile(new URL("../server/http.js", import.meta.url), "utf8");
 const repositorySource = await readFile(new URL("../server/meetings-repository.js", import.meta.url), "utf8");
 
 async function apiFiles(directory = new URL("../api/", import.meta.url)) {
@@ -44,6 +46,11 @@ test("local dev server exposes static and dynamic API routes", () => {
   assert.equal(matchApiRoute("/api/unknown"), null);
 });
 
+test("JSON reads enforce an actual byte limit without Content-Length", async () => {
+  await assert.rejects(readJson({ body: "x".repeat(17) }, 16), /too large/i);
+  await assert.rejects(readJson({ body: { value: "x".repeat(17) } }, 16), /too large/i);
+});
+
 test("local preview PDF route uses Chrome and forces the A4 preview view", async () => {
   const devServerSource = await readFile(new URL("../server/dev.js", import.meta.url), "utf8");
   const appSource = await readFile(new URL("../app.js", import.meta.url), "utf8");
@@ -64,8 +71,8 @@ test("deployment stays within the 15-function Serverless limit", async () => {
 test("meeting PDF route is authenticated and renders the existing A4 view", async () => {
   assert.match(meetingApiSource, /requireSession\(request, response\)/);
   assert.match(meetingApiSource, /request\.query\.action === "pdf"/);
-  assert.match(meetingApiSource, /if \(host\) return `\$\{requestProtocol\(request\)\}:\/\/\$\{host\}`/);
-  assert.ok(meetingApiSource.indexOf("if (host) return") < meetingApiSource.indexOf("process.env.VERCEL_URL"));
+  assert.match(meetingApiSource, /import \{[\s\S]*requestOrigin[\s\S]*\} from "\.\.\/\.\.\/server\/http\.js"/);
+  assert.match(httpSource, /process\.env\.PUBLIC_APP_ORIGIN/);
   assert.match(meetingApiSource, /chromium\.executablePath\(\)/);
   assert.match(meetingApiSource, /page\.setRequestInterception\(true\)/);
   assert.match(meetingApiSource, /window\.__AGENDA_PDF_SNAPSHOT__/);
@@ -76,9 +83,11 @@ test("meeting PDF route is authenticated and renders the existing A4 view", asyn
   assert.match(meetingApiSource, /Content-Length/);
 });
 
-test("meeting PDF loads the public request host before protected Vercel deployment URLs", () => {
+test("meeting PDF accepts the configured public origin and rejects forged hosts", () => {
   const previous = process.env.VERCEL_URL;
+  const previousPublic = process.env.PUBLIC_APP_ORIGIN;
   process.env.VERCEL_URL = "protected-deployment.vercel.app";
+  process.env.PUBLIC_APP_ORIGIN = "https://preview.example.com";
   try {
     assert.equal(requestOrigin({
       headers: {
@@ -87,9 +96,18 @@ test("meeting PDF loads the public request host before protected Vercel deployme
         "x-forwarded-proto": "https",
       },
     }), "https://preview.example.com");
+    assert.throws(() => requestOrigin({
+      headers: {
+        host: "internal.vercel.app",
+        "x-forwarded-host": "169.254.169.254",
+        "x-forwarded-proto": "http",
+      },
+    }), /approved application origin/);
   } finally {
     if (previous == null) delete process.env.VERCEL_URL;
     else process.env.VERCEL_URL = previous;
+    if (previousPublic == null) delete process.env.PUBLIC_APP_ORIGIN;
+    else process.env.PUBLIC_APP_ORIGIN = previousPublic;
   }
 });
 

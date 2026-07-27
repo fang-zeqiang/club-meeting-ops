@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 
 import { ApiError, createRecord, getBitableConfig, listRecords } from "./bitable.js";
-import { readJson, requestProtocol, sendJson } from "./http.js";
+import { readJson, requestOrigin, sendJson } from "./http.js";
 import { asText } from "./meeting-schema.js";
 
 const ACCESS_TTL_SECONDS = 60 * 60;
@@ -10,12 +10,6 @@ const CODE_TTL_SECONDS = 5 * 60;
 const TOKEN_CACHE_TTL_MS = 60 * 1000;
 const PERSONAL_TOKEN_PATTERN = /^vpe_[A-Za-z0-9_-]{43}$/;
 let accessCache = null;
-
-function origin(request) {
-  const host = String(request.headers["x-forwarded-host"] || request.headers.host || "");
-  if (!host) throw new ApiError(400, "INVALID_HOST", "Request host is missing.");
-  return `${requestProtocol(request)}://${host}`;
-}
 
 function signingSecret() {
   const value = String(process.env.AGENDA_SESSION_SECRET || "");
@@ -129,7 +123,7 @@ export async function authenticateMcpBearer(token) {
 }
 
 export function mcpOAuthChallenge(request) {
-  return `Bearer resource_metadata="${origin(request)}/.well-known/oauth-protected-resource/api/mcp", scope="mcp"`;
+  return `Bearer resource_metadata="${requestOrigin(request)}/.well-known/oauth-protected-resource/api/mcp", scope="mcp"`;
 }
 
 function clientHash(clientId) {
@@ -331,7 +325,7 @@ async function handleToken(request, response) {
 }
 
 export async function handleMcpOAuth(request, response) {
-  const baseUrl = origin(request);
+  const baseUrl = requestOrigin(request);
   const action = String(request.query?.oauth || "");
   if (action === "resource-metadata") {
     return sendJson(response, 200, {

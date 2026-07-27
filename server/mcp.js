@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 
 import { ApiError } from "./bitable.js";
-import { requestProtocol, readBuffer, readJson, sendJson, verifySameOrigin } from "./http.js";
+import { readBuffer, readJson, requestOrigin, sendJson, verifySameOrigin } from "./http.js";
 import { AGENDA_READ_TOOLS, callAgendaReadTool } from "./mcp-agenda-read.js";
 import { authenticateMcpBearer, handleMcpOAuth, mcpOAuthChallenge, registerMcpTrial } from "./mcp-auth.js";
 import { getGlobalAssetImage, uploadGlobalAssetImage } from "./media-repository.js";
@@ -102,12 +102,6 @@ export function verifyUploadToken(token, now = Date.now()) {
   return payload;
 }
 
-function origin(request) {
-  const host = String(request.headers["x-forwarded-host"] || request.headers.host || "");
-  if (!host) throw new ApiError(400, "INVALID_HOST", "Request host is missing.");
-  return `${requestProtocol(request)}://${host}`;
-}
-
 function adminUrl(baseUrl, meetingNumber) {
   return meetingNumber
     ? `${baseUrl}/?meeting=${encodeURIComponent(meetingNumber)}&view=admin&task=future-posters`
@@ -178,11 +172,14 @@ export async function downloadChatGptFile(file, fileName) {
   } catch {
     throw new ApiError(400, "INVALID_FILE_REFERENCE", "Attachment URL is invalid.");
   }
-  if (url.protocol !== "https:" || url.username || url.password || !(url.hostname === "files.oaiusercontent.com" || url.hostname.endsWith(".oaiusercontent.com"))) {
+  if (url.protocol !== "https:" || url.username || url.password || url.hostname !== "files.oaiusercontent.com") {
     throw new ApiError(400, "INVALID_FILE_REFERENCE", "Attachment URL is not an approved OpenAI file URL.");
   }
   if (Number(file.size || 0) > MCP_MAX_UPLOAD_BYTES) throw new ApiError(413, "IMAGE_TOO_LARGE", "Image exceeds 4 MiB.");
-  const response = await fetch(url, { redirect: "error" });
+  const approvedUrl = new URL("https://files.oaiusercontent.com");
+  approvedUrl.pathname = url.pathname;
+  approvedUrl.search = url.search;
+  const response = await fetch(approvedUrl, { redirect: "error" });
   if (!response.ok) throw new ApiError(502, "FILE_DOWNLOAD_FAILED", "Could not download the ChatGPT attachment.");
   const declaredLength = Number(response.headers.get("content-length") || 0);
   if (declaredLength > MCP_MAX_UPLOAD_BYTES) throw new ApiError(413, "IMAGE_TOO_LARGE", "Image exceeds 4 MiB.");
@@ -205,7 +202,7 @@ export async function downloadChatGptFile(file, fileName) {
 }
 
 async function getFuturePosters(request) {
-  const baseUrl = origin(request);
+  const baseUrl = requestOrigin(request);
   const [poster1, poster2, meetings] = await Promise.all([
     getGlobalAssetImage("future-poster-1"),
     getGlobalAssetImage("future-poster-2"),
@@ -224,7 +221,7 @@ async function getFuturePosters(request) {
 
 async function prepareFuturePosterUpload(request, rawArguments) {
   const args = validatePrepareArguments(rawArguments);
-  const baseUrl = origin(request);
+  const baseUrl = requestOrigin(request);
   const [stored, meetings] = await Promise.all([getGlobalAssetImage(`future-poster-${args.slot}`), listMeetings()]);
   if (stored.image.version !== args.expectedVersion) {
     throw new ApiError(409, "VERSION_CONFLICT", "The poster changed after it was read. Call get_future_posters again.", { currentVersion: stored.image.version });
@@ -267,7 +264,7 @@ async function prepareFuturePosterUpload(request, rawArguments) {
 
 async function callTool(request, params) {
   try {
-    const agendaResult = await callAgendaReadTool(params?.name, params?.arguments, origin(request));
+    const agendaResult = await callAgendaReadTool(params?.name, params?.arguments, requestOrigin(request));
     if (agendaResult) return toolResult(agendaResult.data, agendaResult.message);
     if (params?.name === "get_future_posters") return await getFuturePosters(request);
     if (params?.name === "prepare_future_poster_upload") return await prepareFuturePosterUpload(request, params.arguments);
@@ -286,7 +283,8 @@ function rpcError(response, status, id, code, message) {
 }
 
 async function authorized(request, response) {
-  const supplied = String(request.headers.authorization || "").match(/^Bearer\s+(.+)$/i)?.[1] || "";
+  const header = String(request.headers.authorization || "");
+  const supplied = header.length <= 4096 && header.slice(0, 7).toLocaleLowerCase() === "bearer " ? header.slice(7).trim() : "";
   try {
     const principal = await authenticateMcpBearer(supplied);
     if (principal) return principal;
@@ -333,7 +331,7 @@ async function handleTrialRegistration(request, response) {
   if (!withinTrialRateLimit(request)) return sendJson(response, 429, { code: "RATE_LIMITED", message: "Too many trial requests. Try again later." });
   if (Number(request.headers["content-length"] || 0) > 2048) return sendJson(response, 413, { code: "REQUEST_TOO_LARGE", message: "Request is too large." });
   try {
-    const body = await readJson(request);
+    const body = await readJson(request, 2048);
     const result = await registerMcpTrial(body.name, body.token);
     return sendJson(response, result.created ? 201 : 200, result);
   } catch (error) {
@@ -351,7 +349,7 @@ async function handleUpload(request, response, token) {
     const buffer = await readBuffer(request, MCP_MAX_UPLOAD_BYTES);
     const image = validateFuturePosterImage(buffer, type, payload.fileName);
     const result = await uploadGlobalAssetImage(`future-poster-${payload.slot}`, buffer, image, { expectedVersion: payload.expectedVersion });
-    const baseUrl = origin(request);
+    const baseUrl = requestOrigin(request);
     const meetings = recentMeetingSummaries(await listMeetings(), baseUrl);
     return sendJson(response, 200, {
       slot: payload.slot,
@@ -394,7 +392,7 @@ export default async function handler(request, response) {
 
   let message;
   try {
-    message = await readJson(request);
+    message = await readJson(request, 64 * 1024);
   } catch {
     return rpcError(response, 400, null, -32700, "Parse error.");
   }

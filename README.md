@@ -146,7 +146,8 @@ against a dedicated test Base, never production.
 1. Fork this repository.
 2. Import the fork as a new Vercel project.
 3. Keep the Vite defaults: build `npm run build`, output `dist`.
-4. Add `.env.example` variables to the server environment.
+4. Add `.env.example` variables to the server environment. Set
+   `PUBLIC_APP_ORIGIN` to the deployment's public HTTPS origin, with no path.
 5. Use a new Base and new secrets for this deployment.
 6. Deploy and verify `/api/health`.
 
