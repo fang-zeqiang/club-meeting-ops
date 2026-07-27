@@ -1,0 +1,18 @@
+{
+  "assets": [
+    {
+      "path": "assets/branding/demo-club-mark.svg",
+      "sha256": "69a35f7a1bcf6bdc2000ee790afa49733415fb60e648f8a577ae315b35f7ecb2",
+      "owner": "Club Meeting Ops contributors",
+      "license": "MIT",
+      "review": "Original vector artwork; no embedded metadata, links, people, QR codes, or third-party marks."
+    },
+    {
+      "path": "docs/demo-preview.png",
+      "sha256": "99b191df84d6cd22393df6d20f7617d0abafdb9f0beaaf70dd825bcf0bc25595",
+      "owner": "Club Meeting Ops contributors",
+      "license": "MIT",
+      "review": "Generated from fictional preview data; no credentials, private links, real people, QR payloads, or third-party marks."
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "name": "club-meeting-ops",
+  "version": "1.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "node --env-file-if-exists=.env.local server/dev.js",
+    "dev:frontend": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "test": "node --test",
+    "check:public": "node scripts/check-public-safety.mjs",
+    "test:integration": "node --env-file-if-exists=.env.local scripts/smoke-bitable.js",
+    "provision:voting-pool": "node --env-file-if-exists=.env.local scripts/provision-voting-pool.js"
+  },
+  "devDependencies": {
+    "vite": "^8.0.16"
+  },
+  "dependencies": {
+    "@sparticuz/chromium": "^148.0.0",
+    "puppeteer-core": "^25.3.0",
+    "qrcode": "^1.5.4"
+  }
+}

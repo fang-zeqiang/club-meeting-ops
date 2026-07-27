@@ -1,0 +1,26 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "framework": "vite",
+  "rewrites": [
+    { "source": "/.well-known/oauth-protected-resource", "destination": "/api/health?view=mcp&oauth=resource-metadata" },
+    { "source": "/.well-known/oauth-protected-resource/api/mcp", "destination": "/api/health?view=mcp&oauth=resource-metadata" },
+    { "source": "/.well-known/oauth-authorization-server", "destination": "/api/health?view=mcp&oauth=server-metadata" },
+    { "source": "/oauth/register", "destination": "/api/health?view=mcp&oauth=register" },
+    { "source": "/oauth/authorize", "destination": "/api/health?view=mcp&oauth=authorize" },
+    { "source": "/oauth/token", "destination": "/api/health?view=mcp&oauth=token" },
+    { "source": "/api/pathways-catalog", "destination": "/api/meetings?view=pathways-catalog" },
+    { "source": "/api/roles", "destination": "/api/members?view=roles" },
+    { "source": "/api/mcp", "destination": "/api/health?view=mcp" },
+    { "source": "/book", "destination": "/index.html" },
+    { "source": "/book/", "destination": "/index.html" },
+    { "source": "/mcp", "destination": "/index.html" },
+    { "source": "/mcp/", "destination": "/index.html" },
+    { "source": "/posters", "destination": "/index.html" },
+    { "source": "/m/:number/posters", "destination": "/index.html" },
+    { "source": "/m/:number/presentation", "destination": "/index.html" },
+    { "source": "/m/:number/awards", "destination": "/index.html" },
+    { "source": "/meetings/:id/presentation", "destination": "/index.html" },
+    { "source": "/meetings/:id/awards/present", "destination": "/index.html" }
+  ]
+}

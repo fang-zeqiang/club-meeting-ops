@@ -1,0 +1,12 @@
+{
+  "members": [
+    { "id": "demo-alex", "displayName": "Alex Chen", "memberType": "member" },
+    { "id": "demo-taylor", "displayName": "Taylor Lee", "memberType": "member" },
+    { "id": "demo-morgan", "displayName": "Morgan Park", "memberType": "guest" }
+  ],
+  "meetings": [
+    { "id": "demo-draft", "meetingNumber": 101, "status": "draft", "theme": "Small steps" },
+    { "id": "demo-final", "meetingNumber": 100, "status": "final", "theme": "Clear signals" }
+  ],
+  "note": "All people and meetings are fictional."
+}
