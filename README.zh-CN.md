@@ -137,7 +137,8 @@ npm run test:integration
 1. Fork 本仓库。
 2. 在 Vercel 新建项目并导入 fork。
 3. 使用 Vite 默认值：`npm run build`，输出 `dist`。
-4. 将 `.env.example` 变量配置到服务端环境。
+4. 将 `.env.example` 变量配置到服务端环境，并把 `PUBLIC_APP_ORIGIN`
+   设置为不带路径的公开 HTTPS Origin。
 5. 使用全新 Base 和全新密钥。
 6. 部署后检查 `/api/health`。
 

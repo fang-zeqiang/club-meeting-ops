@@ -2,7 +2,7 @@ import chromium from "@sparticuz/chromium";
 import puppeteer from "puppeteer-core";
 
 import { requireSession } from "../../server/auth.js";
-import { handleApiError, methodNotAllowed, readJson, requestProtocol, sendJson, verifySameOrigin } from "../../server/http.js";
+import { configuredAppOrigin, handleApiError, methodNotAllowed, readJson, requestOrigin, sendJson, verifySameOrigin } from "../../server/http.js";
 import { getMeeting, getMembers, resolveMeetingId, updateMeeting } from "../../server/meetings-repository.js";
 import { getGuestMeeting, getPresentationMeeting } from "../../server/presentation-repository.js";
 import { analyzeSignup, buildValidatedSignupMeeting } from "../../server/signup-import.js";
@@ -10,12 +10,7 @@ import { generateSignupText } from "../../server/mcp-agenda-read.js";
 
 export const maxDuration = 60;
 
-export function requestOrigin(request) {
-  const host = String(request.headers["x-forwarded-host"] || request.headers.host || "");
-  if (host) return `${requestProtocol(request)}://${host}`;
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
-  throw new Error("Could not resolve the Agenda app origin.");
-}
+export { requestOrigin };
 
 function snapshotHtml(html, snapshot) {
   const payload = JSON.stringify(snapshot).replace(/</g, "\\u003c");
@@ -30,7 +25,7 @@ async function fetchAppHtml(origin) {
 }
 
 async function sendMeetingPdf(request, response, meeting) {
-  const origin = requestOrigin(request);
+  const origin = configuredAppOrigin();
   const html = await fetchAppHtml(origin);
   const browser = await puppeteer.launch({ args: chromium.args, defaultViewport: chromium.defaultViewport, executablePath: await chromium.executablePath(), headless: chromium.headless });
   try {

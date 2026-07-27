@@ -1,14 +1,33 @@
 export function sendJson(response, status, body) {
   response.status(status).setHeader("Content-Type", "application/json; charset=utf-8");
-  response.end(JSON.stringify(body));
+  response.setHeader("X-Content-Type-Options", "nosniff");
+  response.end(Buffer.from(JSON.stringify(body), "utf8"));
 }
 
-export async function readJson(request) {
-  if (request.body && typeof request.body === "object") return request.body;
-  if (typeof request.body === "string") return JSON.parse(request.body || "{}");
+function requestTooLarge() {
+  const error = new Error("Request body is too large.");
+  error.statusCode = 413;
+  error.code = "REQUEST_TOO_LARGE";
+  return error;
+}
+
+export async function readJson(request, maxBytes = 1024 * 1024) {
+  if (request.body && typeof request.body === "object") {
+    if (Buffer.byteLength(JSON.stringify(request.body)) > maxBytes) throw requestTooLarge();
+    return request.body;
+  }
+  if (typeof request.body === "string") {
+    if (Buffer.byteLength(request.body) > maxBytes) throw requestTooLarge();
+    return JSON.parse(request.body || "{}");
+  }
 
   let raw = "";
-  for await (const chunk of request) raw += chunk;
+  let size = 0;
+  for await (const chunk of request) {
+    size += Buffer.byteLength(chunk);
+    if (size > maxBytes) throw requestTooLarge();
+    raw += chunk;
+  }
   return raw ? JSON.parse(raw) : {};
 }
 
@@ -82,9 +101,59 @@ export function verifySameOrigin(request) {
 
 export function requestProtocol(request) {
   const forwardedProto = String(request.headers["x-forwarded-proto"] || "").split(",", 1)[0].trim();
-  if (forwardedProto) return forwardedProto;
+  if (["http", "https"].includes(forwardedProto)) return forwardedProto;
   const host = String(request.headers["x-forwarded-host"] || request.headers.host || "").toLowerCase();
   return /^(localhost|127\.0\.0\.1|\[::1\])(?::|$)/.test(host) ? "http" : "https";
+}
+
+function configuredOrigin(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  try {
+    const url = new URL(raw.includes("://") ? raw : `https://${raw}`);
+    if (url.username || url.password || url.pathname !== "/" || url.search || url.hash) return "";
+    if (url.protocol !== "https:" && !(url.protocol === "http:" && /^(localhost|127\.0\.0\.1|\[::1\])$/.test(url.hostname))) return "";
+    return url.origin;
+  } catch {
+    return "";
+  }
+}
+
+export function configuredAppOrigin() {
+  const origin = [
+    process.env.PUBLIC_APP_ORIGIN,
+    process.env.VERCEL_PROJECT_PRODUCTION_URL,
+    process.env.VERCEL_URL,
+  ].map(configuredOrigin).find(Boolean);
+  if (origin) return origin;
+
+  const error = new Error("PUBLIC_APP_ORIGIN is required for server-rendered output.");
+  error.statusCode = 503;
+  error.code = "APP_ORIGIN_NOT_CONFIGURED";
+  throw error;
+}
+
+export function requestOrigin(request) {
+  const host = String(request.headers["x-forwarded-host"] || request.headers.host || "").split(",", 1)[0].trim();
+  let requested;
+  try {
+    requested = new URL(`${requestProtocol(request)}://${host}`);
+  } catch {
+    requested = null;
+  }
+  if (requested && process.env.NODE_ENV !== "production" && /^(localhost|127\.0\.0\.1|\[::1\])$/.test(requested.hostname)) {
+    const hostname = requested.hostname === "localhost" ? "localhost" : requested.hostname === "127.0.0.1" ? "127.0.0.1" : "[::1]";
+    return `http://${hostname}${requested.port ? `:${Number(requested.port)}` : ""}`;
+  }
+
+  const allowed = [process.env.PUBLIC_APP_ORIGIN, process.env.VERCEL_PROJECT_PRODUCTION_URL, process.env.VERCEL_URL].map(configuredOrigin).filter(Boolean);
+  const approved = requested ? allowed.find((origin) => origin === requested.origin) : "";
+  if (approved) return approved;
+
+  const error = new Error("Request host is not an approved application origin.");
+  error.statusCode = 400;
+  error.code = "INVALID_HOST";
+  throw error;
 }
 
 export function handleApiError(response, error) {
