@@ -410,6 +410,13 @@ export async function callAgendaReadTool(name, rawArguments, baseUrl) {
   if (!Number.isInteger(vacancyEmojiCount) || vacancyEmojiCount < 1 || vacancyEmojiCount > 5) {
     throw new ApiError(400, "INVALID_VACANCY_EMOJI_COUNT", "vacancy_emoji_count must be an integer from 1 to 5.");
   }
+  const vacancyMarker = [
+    vacancyEmoji,
+    vacancyEmojiCount > 1 ? vacancyEmoji : "",
+    vacancyEmojiCount > 2 ? vacancyEmoji : "",
+    vacancyEmojiCount > 3 ? vacancyEmoji : "",
+    vacancyEmojiCount > 4 ? vacancyEmoji : "",
+  ].join("");
 
   if (name === "get_meeting_overview") {
     const data = overview(meeting);
@@ -440,7 +447,7 @@ export async function callAgendaReadTool(name, rawArguments, baseUrl) {
       `${copy.vacancies} · #${meeting.meetingNumber}`,
       `${meeting.date || "日期未定"} ${meeting.startTime || ""} · ${meeting.theme || "主题未定"}`.trim(),
       "",
-      ...(vacancies.total ? [...vacancies.support, ...vacancies.roles, ...vacancies.speakers, ...vacancies.evaluators].slice(0, 100).map(({ label }) => `${vacancyEmoji.repeat(vacancyEmojiCount)} ${label}`) : [copy.none]),
+      ...(vacancies.total ? [...vacancies.support, ...vacancies.roles, ...vacancies.speakers, ...vacancies.evaluators].slice(0, 100).map(({ label }) => `${vacancyMarker} ${label}`) : [copy.none]),
     ].join("\n");
     return { data: { meetingNumber: meeting.meetingNumber, vacancies, text }, message: text };
   }

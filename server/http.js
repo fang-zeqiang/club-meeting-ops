@@ -1,7 +1,7 @@
 export function sendJson(response, status, body) {
   response.status(status).setHeader("Content-Type", "application/json; charset=utf-8");
   response.setHeader("X-Content-Type-Options", "nosniff");
-  response.end(JSON.stringify(body));
+  response.end(Buffer.from(JSON.stringify(body), "utf8"));
 }
 
 function requestTooLarge() {
@@ -119,6 +119,20 @@ function configuredOrigin(value) {
   }
 }
 
+export function configuredAppOrigin() {
+  const origin = [
+    process.env.PUBLIC_APP_ORIGIN,
+    process.env.VERCEL_PROJECT_PRODUCTION_URL,
+    process.env.VERCEL_URL,
+  ].map(configuredOrigin).find(Boolean);
+  if (origin) return origin;
+
+  const error = new Error("PUBLIC_APP_ORIGIN is required for server-rendered output.");
+  error.statusCode = 503;
+  error.code = "APP_ORIGIN_NOT_CONFIGURED";
+  throw error;
+}
+
 export function requestOrigin(request) {
   const host = String(request.headers["x-forwarded-host"] || request.headers.host || "").split(",", 1)[0].trim();
   let requested;
@@ -132,11 +146,7 @@ export function requestOrigin(request) {
     return `http://${hostname}${requested.port ? `:${Number(requested.port)}` : ""}`;
   }
 
-  const allowed = [
-    process.env.PUBLIC_APP_ORIGIN,
-    process.env.VERCEL_PROJECT_PRODUCTION_URL,
-    process.env.VERCEL_URL,
-  ].map(configuredOrigin).filter(Boolean);
+  const allowed = [process.env.PUBLIC_APP_ORIGIN, process.env.VERCEL_PROJECT_PRODUCTION_URL, process.env.VERCEL_URL].map(configuredOrigin).filter(Boolean);
   const approved = requested ? allowed.find((origin) => origin === requested.origin) : "";
   if (approved) return approved;
 

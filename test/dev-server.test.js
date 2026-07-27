@@ -7,7 +7,7 @@ import { requestOrigin } from "../api/meetings/[id].js";
 import mcpHandler from "../server/mcp.js";
 import templateHandler from "../api/templates/[id].js";
 import { matchApiRoute } from "../server/dev.js";
-import { readJson } from "../server/http.js";
+import { configuredAppOrigin, readJson } from "../server/http.js";
 
 const meetingApiSource = await readFile(new URL("../api/meetings/[id].js", import.meta.url), "utf8");
 const awardsApiSource = await readFile(new URL("../api/meetings/[id]/awards.js", import.meta.url), "utf8");
@@ -96,6 +96,7 @@ test("meeting PDF accepts the configured public origin and rejects forged hosts"
         "x-forwarded-proto": "https",
       },
     }), "https://preview.example.com");
+    assert.equal(configuredAppOrigin(), "https://preview.example.com");
     assert.throws(() => requestOrigin({
       headers: {
         host: "internal.vercel.app",
