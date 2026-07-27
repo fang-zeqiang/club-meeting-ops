@@ -22,6 +22,7 @@ const CONFIG = {
   BITABLE_ASSETS_TABLE_ID: "assets",
   BITABLE_MCP_TOKENS_TABLE_ID: "mcp-tokens",
   AGENDA_SESSION_SECRET: "test-session-secret",
+  PUBLIC_APP_ORIGIN: "https://agenda.example",
 };
 
 function responseMock() {
@@ -190,6 +191,14 @@ test("MCP rejects missing bearer auth before processing requests", async () => {
   assert.match(response.headers["www-authenticate"], /oauth-protected-resource\/api\/mcp/);
 });
 
+test("MCP rejects oversized bearer headers without regex backtracking", async () => {
+  const response = responseMock();
+  await mcpHandler(request({ jsonrpc: "2.0", id: 1, method: "ping" }, {
+    headers: { authorization: `Bearer ${"a".repeat(5000)}`, host: "localhost", "content-type": "application/json" },
+  }), response);
+  assert.equal(response.statusCode, 401);
+});
+
 test("MCP trial request writes a disabled Base token only after same-origin confirmation", async () => {
   const response = responseMock();
   await mcpHandler(request({ name: " Alex   Chen ", token: TRIAL_TOKEN }, {
@@ -228,7 +237,7 @@ test("OAuth metadata, PKCE exchange, refresh, and MCP bearer access work without
 
   const registerResponse = responseMock();
   await mcpHandler(request({
-    client_name: "ChatGPT",
+    client_name: "ChatGPT <img src=x onerror=alert(1)>",
     redirect_uris: ["https://chatgpt.com/oauth/callback"],
   }, {
     query: { oauth: "register" },
@@ -256,6 +265,8 @@ test("OAuth metadata, PKCE exchange, refresh, and MCP bearer access work without
   }), authorizeResponse);
   assert.equal(authorizeResponse.statusCode, 200);
   assert.match(authorizeResponse.body, /认证成功[\s\S]*即将返回 ChatGPT/);
+  assert.doesNotMatch(authorizeResponse.body, /<img src=x/);
+  assert.match(authorizeResponse.body, /&lt;img src=x onerror=alert\(1\)&gt;/);
   assert.match(authorizeResponse.body, /http-equiv="refresh"/);
   assert.equal(authorizeResponse.headers["cache-control"], "no-store");
   const callbackHref = authorizeResponse.body.match(/id="oauth-continue" href="([^"]+)"/)?.[1].replaceAll("&amp;", "&");
@@ -283,6 +294,7 @@ test("OAuth metadata, PKCE exchange, refresh, and MCP bearer access work without
     headers: { authorization: `Bearer ${tokens.access_token}`, host: "agenda.example", "content-type": "application/json" },
   }), mcpResponse);
   assert.equal(mcpResponse.statusCode, 200);
+  assert.equal(mcpResponse.headers["x-content-type-options"], "nosniff");
 
   const refreshResponse = responseMock();
   await mcpHandler(request({
@@ -305,10 +317,14 @@ test("signed upload tokens expire and reject tampering", () => {
 });
 
 test("ChatGPT fileParams accepts bounded OpenAI downloads and rejects other hosts", async () => {
-  global.fetch = async () => new Response(new Uint8Array([1, 2, 3]), {
-    status: 200,
-    headers: { "Content-Type": "image/png", "Content-Length": "3" },
-  });
+  let requestedUrl;
+  global.fetch = async (url) => {
+    requestedUrl = String(url);
+    return new Response(new Uint8Array([1, 2, 3]), {
+      status: 200,
+      headers: { "Content-Type": "image/png", "Content-Length": "3" },
+    });
+  };
   const file = await downloadChatGptFile({
     download_url: "https://files.oaiusercontent.com/file/test",
     mime_type: "image/png",
@@ -316,8 +332,13 @@ test("ChatGPT fileParams accepts bounded OpenAI downloads and rejects other host
   }, "poster.png");
   assert.deepEqual(file.buffer, Buffer.from([1, 2, 3]));
   assert.equal(file.type, "image/png");
+  assert.equal(new URL(requestedUrl).origin, "https://files.oaiusercontent.com");
   await assert.rejects(
     downloadChatGptFile({ download_url: "https://example.com/poster.png" }, "poster.png"),
+    /approved OpenAI file URL/,
+  );
+  await assert.rejects(
+    downloadChatGptFile({ download_url: "https://evil.oaiusercontent.com/poster.png" }, "poster.png"),
     /approved OpenAI file URL/,
   );
 });
