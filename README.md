@@ -1,15 +1,36 @@
 # Club Meeting Ops
 
-One meeting record powers role booking, preparation, agenda, presentation,
-voting, awards, and review. The goal: stop repeating the same agenda change
-across pages, tables, and files.
+Update the Agenda once. Meeting materials stay in sync.
+
+Club Meeting Ops keeps role booking, meeting preparation, Agenda,
+Presentation, Voting, Awards, and PDF on one meeting record. Each deployment
+can keep the club's familiar Agenda structure, logo, colors, and layout, so the
+Office Team does not repeat the same change across pages, tables, and files.
 
 This is an independent open-source project. It is not affiliated with or
 endorsed by any speaking-club organization or employer.
 
-[中文说明](README.zh-CN.md)
+[中文说明](README.zh-CN.md) · [Preview locally](#preview-in-five-minutes) · [Configure your club](#configure-your-club)
 
-![Club Meeting Ops fictional preview](docs/demo-preview.png)
+## See the product
+
+![Meeting Workspace editing an Agenda beside its A4 output, using fictional data](docs/demo-preview.png)
+
+Meeting Workspace shows the editable Agenda and finished A4 pages together.
+Role Book gives members a focused place to reserve roles. Presentation,
+Voting, Awards, and PDF read the same meeting data.
+
+```mermaid
+flowchart LR
+  RB[Role Book] --> CORE[(Shared meeting record)]
+  MW[Meeting Workspace] --> CORE
+  CORE --> MCP[MCP read tools]
+  CORE --> P[Presentation]
+  CORE --> V[Voting QR and results]
+  CORE --> A[Awards]
+  CORE --> PDF[PDF / A4]
+  V --> CORE
+```
 
 ## Preview in five minutes
 
@@ -31,7 +52,8 @@ Preview mode uses fictional data, skips sign-in, and performs no Base writes.
 ## Capabilities
 
 - Book future meeting roles against personal goals.
-- Edit meeting details, blocks, roles, speeches, and learning paths.
+- Edit meeting details, Agenda blocks, roles, speeches, and learning paths.
+- Reuse club-specific Agenda templates and public branding.
 - Render two-page A4 agenda and live presentation views.
 - Prepare voting, confirm awards, and present certificates.
 - Review meeting readiness, risks, and post-meeting quality.
