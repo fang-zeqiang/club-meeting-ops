@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "@sparticuz/chromium": "^148.0.0",
-    "puppeteer-core": "^25.3.0",
+    "puppeteer-core": "^25.4.0",
     "qrcode": "^1.5.4"
   }
 }
