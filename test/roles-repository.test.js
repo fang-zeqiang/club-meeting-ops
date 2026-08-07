@@ -16,8 +16,13 @@ test("role catalog canonicalizes aliases and controls booking visibility", () =>
       role_url: { link: "https://example.com/role" },
       sop_url: { link: "javascript:alert(1)" },
       booking_public: true,
+      guest_booking_public: true,
       booking_group: ["主持相关"],
       booking_advanced: true,
+      recommendation_enabled: true,
+      growth_skills: ["会员连接", "主持引导"],
+      recommended_after_roles: ["Warm-up Host"],
+      first_time_support: ["角色说明", "会前过稿"],
       active: true,
       sort_order: 10,
     }),
@@ -27,12 +32,18 @@ test("role catalog canonicalizes aliases and controls booking visibility", () =>
   assert.equal(catalog.canonicalize("Guest Introduction Host"), "Guest Talk Host");
   assert.equal(catalog.canonicalize("Guest Talk Host 2"), "Guest Talk Host");
   assert.equal(catalog.isPublic("Guest Introduction Host"), true);
+  assert.equal(catalog.isGuestPublic("Guest Introduction Host"), true);
   assert.equal(catalog.isPublic("President"), false);
+  assert.equal(catalog.isGuestPublic("President"), false);
   assert.deepEqual(catalog.bookingRoles.map((role) => role.name), ["Guest Talk Host"]);
   assert.equal(catalog.bookingRoles[0].roleUrl, "https://example.com/role");
   assert.equal(catalog.bookingRoles[0].sopUrl, "");
   assert.equal(catalog.bookingRoles[0].group, "主持相关");
   assert.equal(catalog.bookingRoles[0].advanced, true);
+  assert.equal(catalog.isRecommendationEnabled("Guest Introduction Host"), true);
+  assert.deepEqual(catalog.recommendationRoles[0].growthSkills, ["会员连接", "主持引导"]);
+  assert.deepEqual(catalog.recommendationRoles[0].recommendedAfterRoles, ["Warm-up Host"]);
+  assert.deepEqual(catalog.recommendationRoles[0].firstTimeSupport, ["角色说明", "会前过稿"]);
 });
 
 test("role catalog reads Base URL fields returned as markdown links", () => {
@@ -68,7 +79,7 @@ test("role creation reuses active names and aliases before planning a Base row",
   assert.deepEqual(planRoleCreation(records, "Workshop   Host"), {
     created: true,
     role: { name: "Workshop Host", aliases: [], sortOrder: 100 },
-    fields: { role_name: "Workshop Host", booking_public: false, active: true, sort_order: 100 },
+    fields: { role_name: "Workshop Host", booking_public: false, guest_booking_public: false, active: true, sort_order: 100 },
   });
   assert.throws(() => planRoleCreation(records, "Retired Host"), { code: "ROLE_INACTIVE" });
 });

@@ -33,7 +33,7 @@ Preview 只使用虚构数据，不登录、不写 Base。
 - 输出两页 A4 Agenda 与现场 Presentation。
 - 准备投票、确认奖项、展示证书。
 - 检查会前风险并完成会后质量复盘。
-- 通过 MCP 读取会议；只有海报上传工具会写入。
+- 通过 MCP 读取会议；Draft Agenda 修改和角色预约受显式授权、确认、审计与版本检查保护。
 
 ## 架构
 
@@ -44,7 +44,7 @@ Preview 只使用虚构数据，不登录、不写 Base。
 Node.js Functions ── 仅服务端凭证 ── 飞书/Lark Base
   │
   ├─ Meetings / Blocks / Items / Members
-  ├─ Templates / RoleCatalog / Assets
+  ├─ Templates / RoleCatalog / Assets / 推荐状态
   └─ 独立 Voting Base
 ```
 

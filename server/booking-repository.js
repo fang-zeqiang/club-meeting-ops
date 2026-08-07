@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import {
   ApiError,
   createBitableField,
+  createRecord,
   getBitableConfig,
   listBitableFields,
   listRecords,
@@ -11,6 +12,7 @@ import { asText } from "./meeting-schema.js";
 import { getMeeting, listDetailedMeetings, updateMeeting } from "./meetings-repository.js";
 import { getPathwaysCatalog, resolveSpeechDetails } from "./pathways-repository.js";
 import { getRoleCatalog } from "./roles-repository.js";
+import { externalPresentationUrlError, normalizeExternalPresentationUrl } from "../external-presentation-url.js";
 
 const GOALS_FIELD = "booking_goals_json";
 const SHANGHAI_DATE = new Intl.DateTimeFormat("en-CA", {
@@ -27,6 +29,10 @@ export function shanghaiDate(now = new Date()) {
 export function canonicalBookingRole(item, catalog) {
   if (item.kind === "speech") return "Prepared Speaker";
   return catalog.canonicalize(item.role);
+}
+
+export function canManagePresentationUrl(role) {
+  return role === "Prepared Speaker" || role === "TTM";
 }
 
 function parseJson(value, fallback = []) {
@@ -61,6 +67,7 @@ function memberFromRecord(record, catalog) {
     id: asText(record.fields.member_id),
     displayName: asText(record.fields.display_name),
     memberType: asText(record.fields.member_type) || "member",
+    membershipStatus: asText(record.fields.membership_status),
     active: record.fields.active !== false,
     pathwayDefaults: nextPathwayDefaults(Boolean(record.fields.pathways_enrolled), record.fields.pathways_level),
     recordId: record.record_id,
@@ -80,18 +87,101 @@ function isBookingMember(member) {
   return member.active && member.id && member.displayName && !member.memberType.toLocaleLowerCase().includes("guest");
 }
 
+export function isGuestMember(member) {
+  return Boolean(member?.memberType?.toLocaleLowerCase().includes("guest"));
+}
+
+function normalizeDirectoryKey(value) {
+  return String(value || "").trim().toLocaleLowerCase().replace(/\s*,\s*/g, ",").replace(/\s+/g, " ");
+}
+
+function guestNameParts(value) {
+  const raw = String(value || "").trim();
+  if (raw.length < 2 || raw.length > 80 || /[\r\n]/u.test(raw)) {
+    throw new ApiError(400, "INVALID_GUEST_NAME", "Guest 姓名应为 2 到 80 个字符。");
+  }
+  const match = /^([^,]+?)\s*,\s*(.+)$/u.exec(raw);
+  if (!match?.[1].trim()) throw new ApiError(400, "INVALID_GUEST_NAME", "请填写 Guest 的完整姓名和身份后缀。");
+  const name = match[1].trim();
+  const suffix = match[2].trim();
+  if (/^guest$/iu.test(suffix)) return { displayName: `${name}, Guest`, name, title: "", club: "", ordinary: true };
+  const toastmaster = /^([^@]*)@([^@]+)$/u.exec(suffix);
+  if (!toastmaster?.[2].trim()) {
+    throw new ApiError(400, "INVALID_GUEST_NAME", "请使用“姓名, Guest”或“姓名, 头衔@俱乐部缩写”格式。");
+  }
+  const title = toastmaster[1].trim();
+  const club = toastmaster[2].trim();
+  const displayName = `${name}, ${title ? `${title}@` : "@"}${club}`;
+  if (displayName.length > 80) throw new ApiError(400, "INVALID_GUEST_NAME", "Guest 姓名应为 2 到 80 个字符。");
+  return { displayName, name, title, club, ordinary: false };
+}
+
+export function normalizeGuestDisplayName(value) {
+  return guestNameParts(value).displayName;
+}
+
+export function guestNameWarnings(value) {
+  const guest = guestNameParts(value);
+  const warnings = [];
+  const chineseName = /\p{Script=Han}/u.test(guest.name);
+  if (chineseName || (!chineseName && !/\s/u.test(guest.name))) warnings.push("请确认这是嘉宾的完整姓名");
+  if (chineseName || /\p{Script=Han}/u.test(guest.club)) warnings.push("嘉宾来自中文演讲俱乐部吗？否则建议使用英文");
+  if (!guest.ordinary && !guest.title) warnings.push("请确认该嘉宾目前没有组织角色头衔");
+  return warnings;
+}
+
+export function inspectGuestDirectory(value, directory) {
+  const displayName = normalizeGuestDisplayName(value);
+  const exactKey = normalizeDirectoryKey(displayName);
+  const subjectKey = normalizeDirectoryKey(displayName.split(",")[0]);
+  const exact = directory.find((member) => normalizeDirectoryKey(member.displayName) === exactKey);
+  if (exact?.active && !isGuestMember(exact)) {
+    throw new ApiError(409, "GUEST_NAME_IS_MEMBER", "此姓名已是会员，请使用会员预约。");
+  }
+  if (exact && !exact.active && isGuestMember(exact)) {
+    throw new ApiError(409, "GUEST_INACTIVE", "该 Guest 已停用，请联系官员处理。");
+  }
+  const exactGuest = exact?.active && isGuestMember(exact) ? exact : null;
+  const candidates = directory.filter((member) => member.active
+    && member !== exactGuest
+    && normalizeDirectoryKey(member.displayName.split(",")[0]) === subjectKey);
+  return {
+    displayName,
+    warnings: guestNameWarnings(displayName),
+    exactGuest,
+    candidates,
+  };
+}
+
 async function bookingContext() {
   const { membersTableId } = getBitableConfig();
   const [catalog, records] = await Promise.all([getRoleCatalog(), listRecords(membersTableId)]);
-  const members = records
-    .map((record) => memberFromRecord(record, catalog))
+  const directory = records.map((record) => memberFromRecord(record, catalog));
+  const members = directory
     .filter(isBookingMember)
     .sort((a, b) => a.displayName.localeCompare(b.displayName));
-  return { catalog, members };
+  const guests = directory.filter((member) => member.active && member.id && member.displayName && isGuestMember(member))
+    .sort((a, b) => a.displayName.localeCompare(b.displayName));
+  return { catalog, directory, guests, members };
 }
 
 export async function listBookingMembers() {
   return (await bookingContext()).members.map(publicMember);
+}
+
+function publicGuestInspection(inspection) {
+  return {
+    displayName: inspection.displayName,
+    warnings: inspection.warnings,
+    exactGuest: inspection.exactGuest ? publicMember(inspection.exactGuest) : null,
+    candidates: inspection.candidates.map((member) => ({ ...publicMember(member), guest: isGuestMember(member) })),
+  };
+}
+
+export async function inspectBookingGuest(memberId, displayName) {
+  const context = await bookingContext();
+  if (!context.members.some((member) => member.id === memberId)) throw new ApiError(404, "MEMBER_NOT_FOUND", "请选择有效会员。");
+  return publicGuestInspection(inspectGuestDirectory(displayName, context.directory));
 }
 
 function memberMatches(assignment, member) {
@@ -100,14 +190,19 @@ function memberMatches(assignment, member) {
   return clean(assignment.memberName) === clean(member.displayName);
 }
 
-export function bookingAssignments(meeting, catalog) {
+export function canManageBookingAssignment(assignment, actor, directory) {
+  const assignee = directory.find((member) => memberMatches(assignment, member));
+  return memberMatches(assignment, actor) || isGuestMember(assignee);
+}
+
+export function bookingAssignments(meeting, catalog, { includeRecommendationRoles = false } = {}) {
   const items = meeting.blocks.flatMap((block) => block.items || []);
   const speeches = new Map(items.filter((item) => item.kind === "speech").map((item) => [item.id, item]));
   const groups = new Map();
 
   for (const item of items) {
     const role = canonicalBookingRole(item, catalog);
-    if (item.kind === "break" || !catalog.isPublic(role)) continue;
+    if (item.kind === "break" || (!catalog.isPublic(role) && !(includeRecommendationRoles && catalog.isRecommendationEnabled(role)))) continue;
     const id = item.roleAssignmentId ? `role:${item.roleAssignmentId}` : `item:${item.id}`;
     const group = groups.get(id) || { id, role, itemIds: [], items: [], linkedSpeechId: item.linkedSpeechId || "" };
     group.itemIds.push(item.id);
@@ -130,10 +225,11 @@ export function bookingAssignments(meeting, catalog) {
       speechPairId: group.role === "Prepared Speaker" ? group.itemIds[0] : group.linkedSpeechId || "",
       speakerName: speaker?.member || "",
       speechDetails: group.role === "Prepared Speaker" ? speechDetailsForItem(assigned) : null,
+      externalPresentationUrl: canManagePresentationUrl(group.role) ? assigned?.externalPresentationUrl || "" : "",
     };
   });
 
-  if (catalog.isPublic("Photographer")) assignments.push({
+  if (catalog.isPublic("Photographer") || (includeRecommendationRoles && catalog.isRecommendationEnabled("Photographer"))) assignments.push({
       id: "meeting:photographer",
       role: "Photographer",
       memberId: meeting.photographerMemberId || "",
@@ -143,8 +239,9 @@ export function bookingAssignments(meeting, catalog) {
       linkedSpeechId: "",
       speakerName: "",
       speechDetails: null,
+      externalPresentationUrl: "",
     });
-  if (catalog.isPublic("Meeting Manager")) assignments.push({
+  if (catalog.isPublic("Meeting Manager") || (includeRecommendationRoles && catalog.isRecommendationEnabled("Meeting Manager"))) assignments.push({
       id: "meeting:manager",
       role: "Meeting Manager",
       memberId: meeting.meetingManagerMemberId || "",
@@ -154,6 +251,7 @@ export function bookingAssignments(meeting, catalog) {
       linkedSpeechId: "",
       speakerName: "",
       speechDetails: null,
+      externalPresentationUrl: "",
     });
 
   return assignments;
@@ -181,7 +279,9 @@ function publicGoal(goal, member, meetings, today, catalog) {
   return { ...goal, ...goalProgress(goal, member, meetings, today, catalog) };
 }
 
-function assignmentForClient(assignment, meeting, member, goalRoles) {
+function assignmentForClient(assignment, meeting, member, goalRoles, catalog, directory) {
+  const assignee = directory.find((candidate) => memberMatches(assignment, candidate));
+  const guest = isGuestMember(assignee);
   return {
     id: assignment.id,
     role: assignment.role,
@@ -190,15 +290,19 @@ function assignmentForClient(assignment, meeting, member, goalRoles) {
     status: assignment.status,
     mine: memberMatches(assignment, member),
     bookable: meeting.status === "draft" && assignment.status === "vacant",
+    guestBookable: meeting.status === "draft" && assignment.status === "vacant" && catalog.isGuestPublic(assignment.role),
+    guest,
+    manageable: meeting.status === "draft" && (memberMatches(assignment, member) || guest),
     matchesGoal: goalRoles.has(assignment.role),
     speechPairId: assignment.speechPairId,
     speakerName: assignment.speakerName,
     speechDetails: assignment.speechDetails,
+    externalPresentationUrl: assignment.externalPresentationUrl,
   };
 }
 
 export async function getBookingDashboard(memberId, now = new Date()) {
-  const [{ catalog, members }, meetings] = await Promise.all([bookingContext(), listDetailedMeetings()]);
+  const [{ catalog, directory, guests, members }, meetings] = await Promise.all([bookingContext(), listDetailedMeetings()]);
   const member = members.find((candidate) => candidate.id === memberId);
   if (!member) throw new ApiError(404, "MEMBER_NOT_FOUND", "请选择有效会员。");
   const today = shanghaiDate(now);
@@ -215,7 +319,7 @@ export async function getBookingDashboard(memberId, now = new Date()) {
       theme: meeting.theme,
       status: meeting.status,
       revision: meeting.revision,
-      assignments: bookingAssignments(meeting, catalog).map((assignment) => assignmentForClient(assignment, meeting, member, goalRoles)),
+      assignments: bookingAssignments(meeting, catalog).map((assignment) => assignmentForClient(assignment, meeting, member, goalRoles, catalog, directory)),
     }));
   const reservations = futureMeetings.flatMap((meeting) => meeting.assignments
     .filter((assignment) => assignment.mine)
@@ -224,8 +328,9 @@ export async function getBookingDashboard(memberId, now = new Date()) {
   return {
     currentMember: currentMemberForClient(member),
     members: members.map(publicMember),
+    guests: guests.map(publicMember),
     goalRoles: catalog.bookingRoles.map((role) => role.name),
-    roleCatalog: catalog.bookingRoles.map(({ name, description, roleUrl, sopUrl, group, advanced, sortOrder }) => ({ name, description, roleUrl, sopUrl, group, advanced, sortOrder })),
+    roleCatalog: catalog.bookingRoles.map(({ name, description, roleUrl, sopUrl, group, advanced, sortOrder, guestBookingPublic }) => ({ name, description, roleUrl, sopUrl, group, advanced, sortOrder, guestBookingPublic })),
     goals,
     reservations,
     everyoneGoals: members.map((candidate) => ({
@@ -346,7 +451,7 @@ function speechDetailsForItem(item = {}) {
   };
 }
 
-export function applyBookingAssignment(meeting, assignment, member, speechDetails, action = "") {
+export function applyBookingAssignment(meeting, assignment, member, speechDetails, action = "", externalPresentationUrl) {
   const clearSpeech = ["cancel", "transfer"].includes(action);
   if (assignment.id === "meeting:photographer") {
     meeting.photographerMemberId = member?.id || "";
@@ -361,7 +466,8 @@ export function applyBookingAssignment(meeting, assignment, member, speechDetail
 
   const itemIds = new Set(assignment.itemIds);
   const items = meeting.blocks.flatMap((block) => block.items || []);
-  items.filter((item) => itemIds.has(item.id)).forEach((item) => {
+  const assignedItems = items.filter((item) => itemIds.has(item.id));
+  assignedItems.forEach((item) => {
     item.memberId = member?.id || "";
     item.member = member?.displayName || "";
     item.status = member ? "confirmed" : "vacant";
@@ -373,8 +479,15 @@ export function applyBookingAssignment(meeting, assignment, member, speechDetail
       pathwaysProjectId: "",
       pathwaysFormId: "",
       speechObjective: "",
+      externalPresentationUrl: "",
     } : speechDetails);
   });
+  if (canManagePresentationUrl(assignment.role)) {
+    if (clearSpeech) assignedItems.forEach((item) => { item.externalPresentationUrl = ""; });
+    else if (externalPresentationUrl !== undefined) assignedItems.forEach((item, index) => {
+      item.externalPresentationUrl = index ? "" : externalPresentationUrl;
+    });
+  }
   if (assignment.linkedSpeechId) {
     const speech = items.find((item) => item.id === assignment.linkedSpeechId);
     if (speech) {
@@ -385,25 +498,84 @@ export function applyBookingAssignment(meeting, assignment, member, speechDetail
   }
 }
 
+async function resolveGuestTarget(input, context) {
+  if (input?.targetGuestId) {
+    const target = context.guests.find((guest) => guest.id === input.targetGuestId);
+    if (!target) throw new ApiError(400, "INVALID_GUEST", "请选择仍在使用中的 Guest。");
+    return { target, created: false };
+  }
+  const inspection = inspectGuestDirectory(input?.newGuestName, context.directory);
+  if (inspection.exactGuest) return { target: inspection.exactGuest, created: false, reused: true };
+  if (inspection.candidates.length && input?.duplicateConfirmed !== true) {
+    throw new ApiError(409, "GUEST_POSSIBLE_DUPLICATE", "存在同名 Guest 或会员，请确认不是同一人。", publicGuestInspection(inspection));
+  }
+  if (inspection.warnings.length && input?.warningsConfirmed !== true) {
+    throw new ApiError(409, "GUEST_CONFIRMATION_REQUIRED", "请先确认 Guest 姓名信息。", publicGuestInspection(inspection));
+  }
+  if (input?.guestConsentConfirmed !== true) throw new ApiError(400, "GUEST_CONSENT_REQUIRED", "请确认已获得 Guest 同意。");
+  const { membersTableId } = getBitableConfig();
+  const memberId = `guest_${crypto.randomUUID()}`;
+  const record = await createRecord(membersTableId, {
+    member_id: memberId,
+    display_name: inspection.displayName,
+    english_name: inspection.displayName,
+    pathways_level: "",
+    officer_roles: [],
+    member_type: "guest_placeholder",
+    active: true,
+    membership_status: "Guest",
+    current_position: "",
+    pathways_enrolled: false,
+  }, { entity: "booking-guest", memberId });
+  const target = memberFromRecord(record, context.catalog);
+  context.directory.push(target);
+  context.guests.push(target);
+  return { target, created: true };
+}
+
 export async function changeBooking(action, input) {
-  const { catalog, members } = await bookingContext();
+  const context = await bookingContext();
+  const { catalog, directory, members } = context;
   const actor = members.find((member) => member.id === input?.memberId);
   if (!actor) throw new ApiError(404, "MEMBER_NOT_FOUND", "请选择有效会员。");
   const meeting = await getMeeting(String(input?.meetingId || ""));
+  const expectedRevision = input?.expectedRevision == null ? meeting.revision : Number(input.expectedRevision);
+  if (!Number.isInteger(expectedRevision) || expectedRevision !== Number(meeting.revision || 0)) {
+    throw new ApiError(409, "REVISION_CONFLICT", "Meeting revision changed.", { currentRevision: meeting.revision });
+  }
   if (meeting.status !== "draft" || meeting.date <= shanghaiDate()) throw new ApiError(409, "MEETING_LOCKED", "该会议已锁定，不能调整角色。");
   const assignment = bookingAssignments(meeting, catalog).find((candidate) => candidate.id === input?.assignmentId);
   if (!assignment) throw new ApiError(404, "ASSIGNMENT_NOT_FOUND", "角色不存在。");
+  const assignee = directory.find((member) => memberMatches(assignment, member));
+  const guestAssignment = isGuestMember(assignee);
   let target = actor;
-  if (action === "book") {
+  let guestCreated = false;
+  if (["book", "book-guest"].includes(action)) {
     if (assignment.status !== "vacant") throw new ApiError(409, "ROLE_TAKEN", "角色刚刚被预约。");
+    if (action === "book-guest") {
+      if (!catalog.isGuestPublic(assignment.role)) throw new ApiError(403, "GUEST_BOOKING_NOT_ALLOWED", "该角色不开放 Guest 代预约。");
+      if (input?.guestConsentConfirmed !== true) throw new ApiError(400, "GUEST_CONSENT_REQUIRED", "请确认已获得 Guest 同意。");
+      const resolved = await resolveGuestTarget(input, context);
+      target = resolved.target;
+      guestCreated = resolved.created;
+    }
   } else {
-    if (!memberMatches(assignment, actor)) throw new ApiError(403, "NOT_ROLE_OWNER", "只能调整自己的预约。");
+    if (!canManageBookingAssignment(assignment, actor, directory)) throw new ApiError(403, "NOT_ROLE_OWNER", "只能调整自己的预约。");
     if (action === "cancel") target = null;
     if (action === "transfer") {
-      target = members.find((member) => member.id === input?.targetMemberId);
-      if (!target || target.id === actor.id) throw new ApiError(400, "INVALID_TRANSFER_MEMBER", "请选择其他会员。");
+      if (input?.offlineConfirmed !== true) throw new ApiError(400, "TRANSFER_CONFIRMATION_REQUIRED", "请确认已在线下与接收人沟通。");
+      if (input?.newGuestName || input?.targetGuestId) {
+        if (!guestAssignment) throw new ApiError(403, "GUEST_TRANSFER_NOT_ALLOWED", "会员自己的预约只能转让给其他会员。");
+        const resolved = await resolveGuestTarget(input, context);
+        target = resolved.target;
+        guestCreated = resolved.created;
+      } else {
+        target = members.find((member) => member.id === input?.targetMemberId);
+        if (!target || (!guestAssignment && target.id === actor.id)) throw new ApiError(400, "INVALID_TRANSFER_MEMBER", "请选择其他会员。");
+      }
     }
     if (action === "update-speech" && assignment.role !== "Prepared Speaker") throw new ApiError(400, "INVALID_ACTION", "该角色没有演讲信息。");
+    if (action === "update-presentation-url" && !canManagePresentationUrl(assignment.role)) throw new ApiError(400, "INVALID_ACTION", "该角色不能维护 Presentation 链接。");
   }
 
   const next = structuredClone(meeting);
@@ -415,15 +587,24 @@ export async function changeBooking(action, input) {
     if (session.length > 200) throw new ApiError(400, "INVALID_SPEECH_DETAILS", "演讲标题不能超过 200 个字符。");
     speechDetails = { session, ...resolveSpeechDetails(pathwaysCatalog, raw) };
   }
-  applyBookingAssignment(next, assignment, target, speechDetails, action);
+  let externalPresentationUrl;
+  if (canManagePresentationUrl(assignment.role) && ["book", "book-guest", "update-presentation-url"].includes(action)) {
+    const error = externalPresentationUrlError(input?.externalPresentationUrl);
+    if (error) throw new ApiError(400, "INVALID_EXTERNAL_PRESENTATION_URL", error);
+    externalPresentationUrl = normalizeExternalPresentationUrl(input?.externalPresentationUrl);
+  }
+  applyBookingAssignment(next, assignment, target, speechDetails, action, externalPresentationUrl);
   try {
-    return await updateMeeting(meeting.id, next, meeting.revision);
+    return await updateMeeting(meeting.id, next, expectedRevision);
   } catch (error) {
     if (error.code !== "REVISION_CONFLICT") throw error;
     const current = await getMeeting(meeting.id);
     if (current.status !== "draft" || current.date <= shanghaiDate()) throw new ApiError(409, "MEETING_LOCKED", "该会议已锁定，不能调整角色。");
     const currentAssignment = bookingAssignments(current, catalog).find((candidate) => candidate.id === input?.assignmentId);
-    if (action === "book" && currentAssignment?.status !== "vacant") throw new ApiError(409, "ROLE_TAKEN", "角色刚刚被预约。");
+    if (["book", "book-guest"].includes(action) && currentAssignment?.status !== "vacant") {
+      if (guestCreated) throw new ApiError(409, "GUEST_CREATED_ROLE_TAKEN", "Guest 已创建，但角色刚被预约。请返回会议列表选择其他空缺。");
+      throw new ApiError(409, "ROLE_TAKEN", "角色刚刚被预约。");
+    }
     throw error;
   }
 }

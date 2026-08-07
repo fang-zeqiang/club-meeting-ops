@@ -24,7 +24,7 @@ Voting, Awards, and PDF read the same meeting data.
 flowchart LR
   RB[Role Book] --> CORE[(Shared meeting record)]
   MW[Meeting Workspace] --> CORE
-  CORE --> MCP[MCP read tools]
+  CORE --> MCP[MCP read and managed write tools]
   CORE --> P[Presentation]
   CORE --> V[Voting QR and results]
   CORE --> A[Awards]
@@ -57,7 +57,7 @@ Preview mode uses fictional data, skips sign-in, and performs no Base writes.
 - Render two-page A4 agenda and live presentation views.
 - Prepare voting, confirm awards, and present certificates.
 - Review meeting readiness, risks, and post-meeting quality.
-- Read meeting state through MCP; poster upload is the only write-oriented MCP tool.
+- Read meeting state through MCP; manage Draft Agenda edits and role bookings with explicit authorization, confirmation, audit, and revision checks.
 
 ## Architecture
 
@@ -68,7 +68,7 @@ Browser
 Node.js functions ── server-only credentials ── Feishu/Lark Base
   │
   ├─ Meetings / Blocks / Items / Members
-  ├─ Templates / RoleCatalog / Assets
+  ├─ Templates / RoleCatalog / Assets / recommendation state
   └─ separate Voting Base
 ```
 

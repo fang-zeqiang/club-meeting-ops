@@ -132,6 +132,8 @@ button:disabled {
     var(--canvas);
 }
 
+.mcp-edit-card, .mcp-role-booking-guide, .mcp-connect-endpoint, .mcp-agent-prompt, .mcp-tab-list, .mcp-token-panel, .mcp-safety-grid { display: grid; gap: 12px; }
+
 .mcp-nav {
   display: flex;
   align-items: center;
@@ -6437,6 +6439,10 @@ body.has-modal {
     width: 100%;
   }
 
+  .advisor-grid > .advisor-lane:not(.risk-lane) .advisor-card-actions .button {
+    min-height: 44px;
+  }
+
   .advisor-origin-banner {
     align-items: stretch;
     flex-direction: column;
@@ -6572,6 +6578,631 @@ body.has-modal {
   .saa-action:hover,
   .saa-action:active {
     transform: none;
+  }
+}
+
+/* Role recommendations */
+.recommendation-page {
+  min-height: calc(100dvh - 72px);
+  padding: 28px clamp(18px, 4vw, 64px) 56px;
+  background: #f4f7fb;
+}
+
+.recommendation-page-head,
+.recommendation-summary,
+.recommendation-workspace {
+  width: min(1380px, 100%);
+  margin-inline: auto;
+}
+
+.recommendation-page-head,
+.recommendation-panel > header,
+.recommendation-candidate header,
+.recommendation-candidate footer,
+.recommendation-excluded article,
+.recommendation-current article,
+.outreach-drawer > header,
+.outreach-drawer > footer,
+.recommendation-exclusion-modal header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.recommendation-page-head h1,
+.recommendation-panel h2,
+.recommendation-candidate h3,
+.outreach-drawer h2 {
+  margin: 0;
+}
+
+.recommendation-page-head p,
+.recommendation-panel header p,
+.recommendation-candidate small,
+.recommendation-summary small,
+.outreach-drawer header p {
+  color: var(--muted);
+}
+
+.recommendation-page-head > span {
+  flex: none;
+  color: var(--blue);
+  font: 600 12px "IBM Plex Mono", monospace;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.recommendation-summary {
+  display: grid;
+  grid-template-columns: minmax(360px, 1fr) repeat(3, minmax(105px, 0.18fr));
+  margin-top: 22px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--paper);
+  box-shadow: 0 8px 28px rgb(18 35 63 / 7%);
+}
+
+.recommendation-summary > div {
+  display: grid;
+  align-content: center;
+  min-height: 84px;
+  padding: 16px 20px;
+  border-left: 1px solid var(--line);
+}
+
+.recommendation-summary .main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border-left: 0;
+  background: linear-gradient(125deg, #fff 45%, #eef3ff);
+}
+
+.recommendation-summary strong {
+  font-size: 22px;
+}
+
+.recommendation-summary .main strong {
+  font-size: 17px;
+}
+
+.recommendation-summary small {
+  display: block;
+  margin-top: 3px;
+}
+
+.recommendation-degraded {
+  width: min(1380px, 100%);
+  margin: 12px auto 0;
+  padding: 10px 14px;
+  border: 1px solid #e6c579;
+  border-radius: 10px;
+  color: #725212;
+  background: #fff8df;
+}
+
+.recommendation-degraded.error {
+  border-color: #efb3ba;
+  color: #8b2633;
+  background: #fff0f2;
+}
+
+.recommendation-workspace {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.recommendation-role-rail,
+.recommendation-panel,
+.recommendation-state {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--paper);
+}
+
+.recommendation-role-rail {
+  align-self: start;
+  overflow: hidden;
+}
+
+.recommendation-role-rail h2,
+.recommendation-role-rail > p {
+  margin: 0;
+  padding: 16px;
+}
+
+.recommendation-role-rail h2 {
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+}
+
+.recommendation-role-rail nav {
+  display: grid;
+}
+
+.recommendation-role-rail nav button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 64px;
+  padding: 12px 16px;
+  border: 0;
+  border-bottom: 1px solid #e8eef5;
+  color: var(--ink);
+  background: transparent;
+  text-align: left;
+}
+
+.recommendation-role-rail nav button:hover,
+.recommendation-role-rail nav button.active {
+  background: #edf2ff;
+}
+
+.recommendation-role-rail nav button.active {
+  box-shadow: inset 4px 0 var(--blue);
+}
+
+.recommendation-role-rail nav span,
+.recommendation-role-rail nav small {
+  display: block;
+}
+
+.recommendation-role-rail nav small,
+.recommendation-role-rail > p {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.recommendation-role-rail nav b {
+  min-width: 26px;
+  padding: 4px 6px;
+  border-radius: 999px;
+  color: var(--blue);
+  background: var(--sky);
+  text-align: center;
+}
+
+.recommendation-panel {
+  min-width: 0;
+  padding: 22px;
+}
+
+.recommendation-panel > header {
+  align-items: flex-start;
+  margin-bottom: 18px;
+}
+
+.recommendation-panel > header p {
+  margin: 5px 0 0;
+}
+
+.recommendation-panel > header > div:last-child,
+.recommendation-candidate footer > div,
+.recommendation-empty > div,
+.outreach-responses,
+.outreach-drawer > footer > div {
+  display: flex;
+  gap: 8px;
+}
+
+.recommendation-candidates {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.recommendation-candidate {
+  display: flex;
+  min-width: 0;
+  min-height: 300px;
+  flex-direction: column;
+  padding: 18px;
+  border: 1px solid #d9e2ee;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 6px 20px rgb(18 35 63 / 6%);
+}
+
+.recommendation-candidate header {
+  justify-content: flex-start;
+}
+
+.recommendation-candidate header > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.recommendation-candidate h3,
+.recommendation-candidate small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recommendation-avatar {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: none;
+  place-items: center;
+  border-radius: 12px;
+  color: #fff;
+  background: var(--navy);
+  font-weight: 700;
+}
+
+.recommendation-tag {
+  margin-left: auto;
+  padding: 4px 7px;
+  border-radius: 999px;
+  color: #176445;
+  background: #dff5eb;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.recommendation-candidate footer .button {
+  white-space: nowrap;
+}
+
+.recommendation-tag.growth {
+  color: #2949a8;
+  background: #e4eaff;
+}
+
+.recommendation-tag.backup {
+  color: #655b49;
+  background: #eeebe5;
+}
+
+.recommendation-reasons {
+  display: grid;
+  gap: 8px;
+  margin: 18px 0;
+}
+
+.recommendation-reasons span {
+  position: relative;
+  padding-left: 18px;
+  line-height: 1.45;
+}
+
+.recommendation-reasons span::before {
+  position: absolute;
+  top: 0;
+  left: 0;
+  color: var(--green);
+  content: "✓";
+}
+
+.recommendation-risk {
+  margin: 0 0 16px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  color: #745517;
+  background: #fff7df;
+  font-size: 12px;
+}
+
+.recommendation-candidate footer {
+  align-items: flex-end;
+  margin-top: auto;
+}
+
+.button.danger-text {
+  color: var(--red);
+}
+
+.recommendation-empty,
+.recommendation-state {
+  padding: 48px 24px;
+  text-align: center;
+}
+
+.recommendation-state {
+  width: min(720px, calc(100% - 32px));
+  margin: 64px auto;
+}
+
+.recommendation-empty > div {
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.recommendation-excluded,
+.recommendation-current,
+.recommendation-method {
+  margin-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.recommendation-excluded summary,
+.recommendation-current summary,
+.recommendation-method summary {
+  padding: 16px 4px 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.recommendation-excluded article,
+.recommendation-current article {
+  padding: 10px 4px;
+  border-top: 1px solid #e8eef5;
+}
+
+.recommendation-excluded small {
+  display: block;
+  color: var(--muted);
+}
+
+.outreach-backdrop {
+  justify-content: flex-end;
+}
+
+.outreach-drawer {
+  display: flex;
+  width: min(560px, 100%);
+  height: 100dvh;
+  flex-direction: column;
+  overflow: hidden;
+  color: var(--ink);
+  background: #fff;
+  box-shadow: -20px 0 50px rgb(18 35 63 / 24%);
+  animation: outreach-in 180ms ease-out;
+}
+
+@keyframes outreach-in {
+  from { transform: translateX(24px); opacity: 0.6; }
+}
+
+.outreach-drawer > header,
+.outreach-drawer > footer {
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--line);
+}
+
+.outreach-drawer > footer {
+  border-top: 1px solid var(--line);
+  border-bottom: 0;
+}
+
+.outreach-drawer header p {
+  margin: 5px 0 0;
+}
+
+.outreach-drawer > nav {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  padding: 12px 22px;
+  background: #f5f7fb;
+}
+
+.outreach-drawer > nav span {
+  padding-top: 8px;
+  border-top: 3px solid var(--line);
+  color: var(--muted);
+  font-size: 11px;
+  text-align: center;
+}
+
+.outreach-drawer > nav span.done,
+.outreach-drawer > nav span.active {
+  border-color: var(--blue);
+  color: var(--blue);
+  font-weight: 700;
+}
+
+.outreach-body {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  padding: 20px 22px;
+}
+
+.outreach-status,
+.outreach-privacy {
+  padding: 10px 12px;
+  border-radius: 9px;
+  color: #5c4b20;
+  background: #fff6d9;
+  font-size: 12px;
+}
+
+.outreach-status.success {
+  color: #195c43;
+  background: #e2f5ec;
+}
+
+.outreach-segment {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 9px;
+  background: #edf1f6;
+}
+
+.outreach-segment button {
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+}
+
+.outreach-segment button.active {
+  background: #fff;
+  box-shadow: 0 2px 8px rgb(18 35 63 / 12%);
+}
+
+.outreach-field {
+  display: grid;
+  gap: 7px;
+  margin-top: 16px;
+  font-weight: 600;
+}
+
+.outreach-field textarea {
+  width: 100%;
+  min-height: 220px;
+  resize: vertical;
+}
+
+.outreach-evidence {
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.outreach-evidence dl div {
+  display: grid;
+  grid-template-columns: 84px 1fr;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.outreach-evidence dt {
+  color: var(--muted);
+}
+
+.outreach-evidence dd {
+  margin: 0;
+}
+
+.outreach-responses {
+  margin-top: 16px;
+}
+
+.recommendation-exclusion-modal fieldset {
+  display: grid;
+  max-height: 180px;
+  gap: 8px;
+  overflow: auto;
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.recommendation-exclusion-modal .field {
+  margin-top: 12px;
+}
+
+@media (width <= 1080px) {
+  .recommendation-summary {
+    grid-template-columns: 1fr repeat(3, minmax(92px, 0.2fr));
+  }
+
+  .recommendation-candidates {
+    grid-template-columns: 1fr;
+  }
+
+  .recommendation-candidate {
+    min-height: 0;
+  }
+}
+
+@media (width <= 720px) {
+  .recommendation-page {
+    padding: 18px 12px 40px;
+  }
+
+  .recommendation-page-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .recommendation-page-head h1 {
+    font-size: 24px;
+  }
+
+  .recommendation-summary {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .recommendation-summary .main {
+    grid-column: 1 / -1;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .recommendation-summary > div {
+    min-height: 70px;
+    padding: 12px;
+  }
+
+  .recommendation-summary > div:nth-child(2) {
+    border-left: 0;
+  }
+
+  .recommendation-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .recommendation-role-rail nav {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+  }
+
+  .recommendation-role-rail nav button {
+    min-width: 190px;
+    border-right: 1px solid #e8eef5;
+    border-bottom: 0;
+    scroll-snap-align: start;
+  }
+
+  .recommendation-panel {
+    padding: 16px;
+  }
+
+  .recommendation-panel > header,
+  .recommendation-candidate footer,
+  .outreach-drawer > footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .recommendation-panel > header > div:last-child,
+  .recommendation-candidate footer > div,
+  .outreach-drawer > footer > div {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .recommendation-candidate footer > .button {
+    width: 100%;
+  }
+
+  .recommendation-panel button,
+  .recommendation-candidate button {
+    min-height: 44px;
+  }
+
+  .outreach-drawer > header,
+  .outreach-drawer > footer,
+  .outreach-body {
+    padding-inline: 16px;
+  }
+
+  .outreach-drawer > nav {
+    padding-inline: 16px;
+  }
+
+  .outreach-field textarea {
+    min-height: 180px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .outreach-drawer {
+    animation: none;
   }
 }
 
