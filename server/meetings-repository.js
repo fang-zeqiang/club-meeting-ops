@@ -65,6 +65,7 @@ const memberFromRecord = (record) => ({
   displayName: asText(record.fields.display_name),
   englishName: asText(record.fields.english_name),
   pathwaysLevel: asText(record.fields.pathways_level),
+  pathwaysVerifiedAt: asText(record.fields.pathways_verified_at),
   officerRoles: Array.isArray(record.fields.officer_roles) ? record.fields.officer_roles : [],
   memberType: record.fields.member_type || "member",
   active: record.fields.active !== false,

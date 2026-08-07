@@ -7,6 +7,15 @@ import { getMeeting, getMembers, resolveMeetingId, updateMeeting } from "../../s
 import { getGuestMeeting, getPresentationMeeting } from "../../server/presentation-repository.js";
 import { analyzeSignup, buildValidatedSignupMeeting } from "../../server/signup-import.js";
 import { generateSignupText } from "../../server/mcp-agenda-read.js";
+import {
+  getRoleRecommendations,
+  markRoleOutreachBooked,
+  polishOutreachDraft,
+  restoreDismissedCandidate,
+  restoreRecommendationExclusion,
+  updateRecommendationExclusion,
+  updateRoleOutreach,
+} from "../../server/role-recommendations-repository.js";
 
 export const maxDuration = 60;
 
@@ -68,12 +77,23 @@ export default async function handler(request, response) {
     if (!requireSession(request, response)) return;
     const id = await resolveMeetingId(identifier);
     if (request.method === "GET") {
+      if (request.query.action === "recommendations") return sendJson(response, 200, { recommendations: await getRoleRecommendations(id) });
       const meeting = await getMeeting(id);
       if (request.query.action === "pdf") return sendMeetingPdf(request, response, meeting);
       return sendJson(response, 200, { meeting });
     }
     if (!verifySameOrigin(request)) return sendJson(response, 403, { code: "INVALID_ORIGIN", message: "Request origin is not allowed." });
     const body = await readJson(request);
+    if (request.method === "POST" && request.query.action === "recommendation-exclusion") {
+      if (body.restoreExclusionId) return sendJson(response, 200, await restoreRecommendationExclusion(body.restoreExclusionId));
+      return sendJson(response, 200, await updateRecommendationExclusion(id, body));
+    }
+    if (request.method === "POST" && request.query.action === "role-outreach") {
+      if (body.restoreDismissed) return sendJson(response, 200, await restoreDismissedCandidate(id, body.assignmentId, body.memberId));
+      if (body.status === "booked") return sendJson(response, 200, await markRoleOutreachBooked(id, body));
+      return sendJson(response, 200, await updateRoleOutreach(id, body));
+    }
+    if (request.method === "POST" && request.query.action === "polish-outreach") return sendJson(response, 200, await polishOutreachDraft(body));
     if (request.method === "POST" && request.query.action === "pdf") {
       const meeting = await getMeeting(id);
       request.body = body;

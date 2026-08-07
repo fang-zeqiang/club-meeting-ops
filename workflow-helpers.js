@@ -1,7 +1,12 @@
-function localDateTime(now) {
-  const date = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, "0"), String(now.getDate()).padStart(2, "0")].join("-");
-  const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-  return `${date} ${time}`;
+export function shanghaiDate(now) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+  const part = (type) => parts.find((entry) => entry.type === type)?.value;
+  return `${part("year")}-${part("month")}-${part("day")}`;
 }
 
 const AGENDA_ATTENDANCE_RATIO = 19 / 17;
@@ -27,10 +32,14 @@ export function agendaPrintRecommendation(meeting) {
 }
 
 export function selectCurrentMeeting(meetings, now = new Date()) {
-  const threshold = localDateTime(now);
+  const threshold = `${shanghaiDate(now)} ${new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Shanghai", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(now)}`;
   return [...meetings]
     .filter((meeting) => meeting.status === "draft" && `${meeting.date || ""} ${meeting.startTime || "00:00"}` >= threshold)
     .sort((a, b) => `${a.date} ${a.startTime || "00:00"}`.localeCompare(`${b.date} ${b.startTime || "00:00"}`))[0] || null;
+}
+
+export function isShanghaiMeetingToday(meeting, now = new Date()) {
+  return meeting?.date === shanghaiDate(now);
 }
 
 export function sortMeetingsForPicker(meetings, now = new Date()) {
@@ -44,7 +53,7 @@ export function sortMeetingsForPicker(meetings, now = new Date()) {
 }
 
 export function groupMeetingsForSwitchboard(meetings, now = new Date()) {
-  const threshold = localDateTime(now);
+  const threshold = `${shanghaiDate(now)} ${new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Shanghai", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(now)}`;
   const next = selectCurrentMeeting(meetings, now);
   const remaining = meetings.filter((meeting) => meeting !== next);
   const upcoming = remaining

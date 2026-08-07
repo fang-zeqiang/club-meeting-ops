@@ -12,6 +12,9 @@ Required tables:
 - `Members`: display name, member type, active state, officer roles, goals.
 - `Assets`: `asset_key` and image attachment.
 - `RoleCatalog`: canonical role name, aliases, description, active state, order.
+- `MemberDevelopmentProfiles` (optional): member growth preferences and role-development context for recommendations.
+- `RecommendationExclusions` (optional): member availability exclusions; does not change membership or manual assignments.
+- `RoleOutreach` (optional): recommendation outreach status; acceptance is not a booking until the Agenda write succeeds.
 
 Optional tables:
 

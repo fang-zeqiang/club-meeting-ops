@@ -414,6 +414,12 @@ test("workspace paints the current meeting before deferred data finishes", () =>
 });
 
 test("awards load for Advisor status and Admin award tasks", () => {
-  assert.match(appSource, /if \(state\.meeting\?\.id === meetingId\) await loadAwards\(\{ quiet: true \}\)/);
+  assert.match(appSource, /Promise\.all\(\[\s*loadAwards\(\{ quiet: true \}\),\s*loadRoleRecommendations\(\{ quiet: true \}\)/);
   assert.match(appSource, /state\.activeTask === "awards"[\s\S]*await loadAwards\(\)/);
+});
+
+test("Guest recommendation UI keeps identity separate and shows Photographer checks", () => {
+  assert.match(appSource, /recommendation-guest-tag/);
+  assert.match(appSource, /愿意拍照 · 可使用手机或相机 · 已知并接受照片使用方式/);
+  assert.match(appSource, /全部合格候选人/);
 });

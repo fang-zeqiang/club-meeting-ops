@@ -16,6 +16,9 @@ function safeUrl(value) {
 }
 
 function roleFromRecord(record) {
+  const list = (value) => Array.isArray(value)
+    ? value.map(clean).filter(Boolean)
+    : asText(value).split(/[\n,]/).map(clean).filter(Boolean);
   return {
     name: asText(record.fields.role_name),
     aliases: asText(record.fields.aliases).split(/[\n,]/).map(clean).filter(Boolean),
@@ -23,10 +26,15 @@ function roleFromRecord(record) {
     roleUrl: safeUrl(record.fields.role_url),
     sopUrl: safeUrl(record.fields.sop_url),
     bookingPublic: record.fields.booking_public === true,
+    guestBookingPublic: record.fields.guest_booking_public === true,
     group: asText(record.fields.booking_group),
     advanced: record.fields.booking_advanced === true,
     active: record.fields.active === true,
     sortOrder: Number(record.fields.sort_order) || 0,
+    recommendationEnabled: record.fields.recommendation_enabled === true,
+    growthSkills: list(record.fields.growth_skills).slice(0, 3),
+    recommendedAfterRoles: list(record.fields.recommended_after_roles),
+    firstTimeSupport: list(record.fields.first_time_support),
   };
 }
 
@@ -44,15 +52,24 @@ export function roleCatalogFromRecords(records, { includeInactive = false } = {}
     }
   }
   const publicNames = new Set(roles.filter((role) => role.bookingPublic).map((role) => role.name));
+  const guestPublicNames = new Set(roles.filter((role) => role.bookingPublic && role.guestBookingPublic).map((role) => role.name));
+  const recommendationNames = new Set(roles.filter((role) => role.recommendationEnabled).map((role) => role.name));
   return {
     roles,
     bookingRoles: roles.filter((role) => role.bookingPublic),
+    recommendationRoles: roles.filter((role) => role.recommendationEnabled),
     canonicalize(value) {
       const role = clean(value).replace(/\s+\d+$/, "");
       return byAlias.get(key(role)) || role;
     },
     isPublic(value) {
       return publicNames.has(this.canonicalize(value));
+    },
+    isGuestPublic(value) {
+      return guestPublicNames.has(this.canonicalize(value));
+    },
+    isRecommendationEnabled(value) {
+      return recommendationNames.has(this.canonicalize(value));
     },
   };
 }
@@ -79,12 +96,18 @@ export function planRoleCreation(records, value) {
     return { created: false, role: agendaRole(existing) };
   }
   const sortOrder = Math.max(0, ...catalog.roles.map((role) => role.sortOrder)) + 10;
-  return { created: true, role: { name, aliases: [], sortOrder }, fields: { role_name: name, booking_public: false, active: true, sort_order: sortOrder } };
+  return { created: true, role: { name, aliases: [], sortOrder }, fields: { role_name: name, booking_public: false, guest_booking_public: false, active: true, sort_order: sortOrder } };
 }
 
 export async function getAgendaRoles() {
   const catalog = await getRoleCatalog();
   return catalog.roles.map(agendaRole);
+}
+
+export async function planAgendaRole(value) {
+  const { rolesTableId } = getBitableConfig();
+  if (!rolesTableId) throw new ApiError(503, "ROLE_CATALOG_NOT_CONFIGURED", "角色目录尚未配置。");
+  return planRoleCreation(await listRecords(rolesTableId), value);
 }
 
 export async function createAgendaRole(value) {
