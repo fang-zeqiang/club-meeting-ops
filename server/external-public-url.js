@@ -132,12 +132,17 @@ function classify(provider, response, body, finalUrl) {
   return { status: "unknown", reason: "Anonymous public access could not be determined reliably." };
 }
 
-function pinnedFetch(url, address, { headers = {}, timeoutMs = TIMEOUT_MS } = {}) {
+function pinnedFetch(url, provider, address, { headers = {}, timeoutMs = TIMEOUT_MS } = {}) {
+  const hostname = provider === "tencent-docs" ? "docs.qq.com" : "feishu.cn";
   return new Promise((resolve, reject) => {
-    const request = https.request(url, {
+    const request = https.request({
+      protocol: "https:",
+      hostname,
+      port: 443,
+      path: `${url.pathname}${url.search}`,
       method: "GET",
       headers,
-      servername: url.hostname,
+      servername: hostname,
       lookup: (_hostname, _options, callback) => callback(null, address.address, address.family),
     }, (response) => {
       resolve(new Response(Readable.toWeb(response), { status: response.statusCode, headers: response.headers }));
@@ -178,7 +183,7 @@ export async function checkExternalPublicUrl(value, {
       const headers = { Accept: "text/html,application/xhtml+xml", Range: `bytes=0-${MAX_BODY_BYTES - 1}`, "User-Agent": "VPE-Agenda-Public-Link-Check/1.0" };
       const response = fetchImpl
         ? await fetchImpl(url, { method: "GET", redirect: "manual", headers, signal: AbortSignal.timeout(remainingMs) })
-        : await pinnedFetch(url, address, { headers, timeoutMs: remainingMs });
+        : await pinnedFetch(url, provider, address, { headers, timeoutMs: remainingMs });
       if ([301, 302, 303, 307, 308].includes(response.status)) {
         const location = response.headers.get("location");
         if (!location || redirect === MAX_REDIRECTS) throw new Error("redirect");
