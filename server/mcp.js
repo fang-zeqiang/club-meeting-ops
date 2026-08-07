@@ -186,7 +186,8 @@ export async function downloadChatGptFile(file, fileName) {
     throw new ApiError(400, "INVALID_FILE_REFERENCE", "Attachment URL is not an approved OpenAI file URL.");
   }
   if (Number(file.size || 0) > MCP_MAX_UPLOAD_BYTES) throw new ApiError(413, "IMAGE_TOO_LARGE", "Image exceeds 4 MiB.");
-  const response = await fetch(url, { redirect: "error" });
+  const approvedUrl = new URL(`${url.pathname}${url.search}`, "https://files.oaiusercontent.com");
+  const response = await fetch(approvedUrl, { redirect: "error" });
   if (!response.ok) throw new ApiError(502, "FILE_DOWNLOAD_FAILED", "Could not download the ChatGPT attachment.");
   const declaredLength = Number(response.headers.get("content-length") || 0);
   if (declaredLength > MCP_MAX_UPLOAD_BYTES) throw new ApiError(413, "IMAGE_TOO_LARGE", "Image exceeds 4 MiB.");
@@ -291,7 +292,8 @@ function rpcError(response, status, id, code, message) {
 }
 
 async function authorized(request, response) {
-  const supplied = String(request.headers.authorization || "").match(/^Bearer\s+(.+)$/i)?.[1] || String(request.headers.token || "");
+  const authorization = String(request.headers.authorization || "");
+  const supplied = authorization.toLocaleLowerCase().startsWith("bearer ") ? authorization.slice(7).trim() : String(request.headers.token || "");
   try {
     const principal = await authenticateMcpBearer(supplied);
     if (principal) return principal;

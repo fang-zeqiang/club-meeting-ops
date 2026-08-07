@@ -18,6 +18,14 @@ function providerFor(hostname) {
   return PROVIDERS.find(({ hosts }) => hosts.some((host) => hostname === host || hostname.endsWith(`.${host}`)))?.name || "other";
 }
 
+function providerRequestUrl(url, provider) {
+  const origin = provider === "tencent-docs" ? "https://docs.qq.com"
+    : provider === "feishu" ? "https://feishu.cn"
+      : null;
+  if (!origin) throw new ApiError(400, "EXTERNAL_URL_SSRF_BLOCKED", "External URL provider is not approved for server-side checks.");
+  return new URL(`${url.pathname}${url.search}`, origin);
+}
+
 function ipv4Number(address) {
   return address.split(".").reduce((value, part) => (value << 8) + Number(part), 0) >>> 0;
 }
@@ -149,7 +157,7 @@ export async function checkExternalPublicUrl(value, {
   const deadline = Date.now() + timeoutMs;
   let url = parseExternalUrl(value);
   const provider = providerFor(url.hostname);
-  let address = await assertPublicDestination(url, lookup);
+  if (provider === "other") await assertPublicDestination(url, lookup);
   if (provider === "other") {
     return {
       url: url.href,
@@ -160,6 +168,8 @@ export async function checkExternalPublicUrl(value, {
       checkedAt: now.toISOString(),
     };
   }
+  url = providerRequestUrl(url, provider);
+  let address = await assertPublicDestination(url, lookup);
 
   try {
     for (let redirect = 0; redirect <= MAX_REDIRECTS; redirect += 1) {
@@ -172,7 +182,9 @@ export async function checkExternalPublicUrl(value, {
       if ([301, 302, 303, 307, 308].includes(response.status)) {
         const location = response.headers.get("location");
         if (!location || redirect === MAX_REDIRECTS) throw new Error("redirect");
-        url = parseExternalUrl(new URL(location, url).href);
+        const redirected = parseExternalUrl(new URL(location, url).href);
+        if (providerFor(redirected.hostname) !== provider) throw new Error("redirect");
+        url = providerRequestUrl(redirected, provider);
         address = await assertPublicDestination(url, lookup);
         continue;
       }
