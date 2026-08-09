@@ -14,6 +14,8 @@
     { "source": "/api/mcp", "destination": "/api/health?view=mcp" },
     { "source": "/book", "destination": "/index.html" },
     { "source": "/book/", "destination": "/index.html" },
+    { "source": "/about", "destination": "/index.html" },
+    { "source": "/about/", "destination": "/index.html" },
     { "source": "/mcp", "destination": "/index.html" },
     { "source": "/mcp/", "destination": "/index.html" },
     { "source": "/posters", "destination": "/index.html" },

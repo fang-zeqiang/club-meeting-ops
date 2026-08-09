@@ -13,6 +13,48 @@
       "owner": "Club Meeting Ops contributors",
       "license": "MIT",
       "review": "Generated from fictional preview data; no credentials, private links, real people, QR payloads, or third-party marks."
+    },
+    {
+      "path": "assets/about/workspace-demo.png",
+      "sha256": "7bb5500febdf801b533958554ed43d06254ed233eef7f725e8984fc21ec04d28",
+      "owner": "Club Meeting Ops contributors",
+      "license": "MIT",
+      "review": "Generated from fictional meeting data; no credentials, private links, real people, QR payloads, or third-party marks."
+    },
+    {
+      "path": "assets/about/presentation-demo.jpg",
+      "sha256": "0941e24f7b88dd205746282b6a9ca83b308dca8af1ba25a42e913181a3e5bd4c",
+      "owner": "Club Meeting Ops contributors",
+      "license": "MIT",
+      "review": "Generated from fictional meeting data; no credentials, private links, real people, QR payloads, or third-party marks."
+    },
+    {
+      "path": "assets/about/voting-demo.jpg",
+      "sha256": "7927442bb03e0b97543da473d565909e0be2ef141e2ffa89449ba685adbe564b",
+      "owner": "Club Meeting Ops contributors",
+      "license": "MIT",
+      "review": "Generated from fictional meeting data; no credentials, private links, real people, QR payloads, or third-party marks."
+    },
+    {
+      "path": "assets/about/pdf-demo.jpg",
+      "sha256": "d16f0b97133e61358bc01cc0ed90858f1fafba0ea324febd55d1ec6e5ae23e71",
+      "owner": "Club Meeting Ops contributors",
+      "license": "MIT",
+      "review": "Generated from fictional meeting data; no credentials, private links, real people, QR payloads, or third-party marks."
+    },
+    {
+      "path": "assets/about/workspace-demo-admin.png",
+      "sha256": "bab6f860be33c3b6cbe564809e02d226457d2c4e21d645ce5dac8301c3ff32e7",
+      "owner": "Club Meeting Ops contributors",
+      "license": "MIT",
+      "review": "Generated from fictional meeting data; no credentials, private links, real people, QR payloads, or third-party marks."
+    },
+    {
+      "path": "assets/about/role-book-demo.png",
+      "sha256": "d335940f281106785c5f7fab36babcbc11f5f55eee5c9a038bf72ee4fb278917",
+      "owner": "Club Meeting Ops contributors",
+      "license": "MIT",
+      "review": "Generated from fictional meeting data; no credentials, private links, real people, QR payloads, or third-party marks."
     }
   ]
 }

@@ -1995,7 +1995,7 @@ function renderProductUpdates() {
 function renderAboutProductPrompt() {
   if (!state.aboutProductOpen) return "";
   return `<div class="modal-backdrop"><section class="modal-card club-settings-modal" role="dialog" aria-modal="true" aria-labelledby="about-product-title">
-    <div class="modal-title-row"><div><span class="eyebrow">VPE Agenda</span><h2 id="about-product-title">About Product</h2></div><button class="icon-button" data-close-about-product aria-label="Close About Product">×</button></div>
+    <div class="modal-title-row"><div><span class="eyebrow">VPE Agenda</span><h2 id="about-product-title">About Product</h2></div><div><a class="button compact" href="/about">Product overview</a><button class="icon-button" data-close-about-product aria-label="Close About Product">×</button></div></div>
     <div class="club-settings-scroll">${renderProductUpdates()}</div>
   </section></div>`;
 }
