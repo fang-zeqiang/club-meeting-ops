@@ -5,8 +5,11 @@ const shortMeetingPresentationRoute = window.location.pathname.match(/^\/m\/(\d+
 const posterPresentationRoute = window.location.pathname.match(/^\/(?:m\/(\d+)\/)?posters\/?$/);
 const bookingRoute = window.location.pathname.match(/^\/book\/?$/);
 const mcpRoute = window.location.pathname.match(/^\/mcp\/?$/);
+const aboutRoute = window.location.pathname.match(/^\/about\/?$/);
 
-if (mcpRoute) {
+if (aboutRoute) {
+  import("./about-page.js");
+} else if (mcpRoute) {
   import("./mcp-page.js");
 } else if (bookingRoute) {
   import("./book.js");
