@@ -15,7 +15,7 @@
     "provision:voting-pool": "node --env-file-if-exists=.env.local scripts/provision-voting-pool.js"
   },
   "devDependencies": {
-    "vite": "^8.0.16"
+    "vite": "^8.1.5"
   },
   "dependencies": {
     "@sparticuz/chromium": "^148.0.0",
