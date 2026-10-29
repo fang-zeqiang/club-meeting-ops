@@ -1,6 +1,6 @@
 ---
 name: member-growth
-description: Track one Toastmasters member's Pathways progress from VPE Agenda meetings and plan their next growth step as a concrete meeting + role + Pathways project, then book it through MCP once the officer confirms the member agreed. Use for 会员进度、Pathways 进度、成长计划、下一步该讲什么、推荐他去哪期当什么角色.
+description: Track one club member's Pathways progress from VPE Agenda meetings and plan their next growth step as a concrete meeting + role + Pathways project, then book it through MCP once the officer confirms the member agreed. Use for 会员进度、Pathways 进度、成长计划、下一步该讲什么、推荐他去哪期当什么角色.
 ---
 
 # Member growth
