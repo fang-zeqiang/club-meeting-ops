@@ -32,9 +32,13 @@ export function agendaPrintRecommendation(meeting) {
 }
 
 export function selectCurrentMeeting(meetings, now = new Date()) {
-  const threshold = `${shanghaiDate(now)} ${new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Shanghai", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(now)}`;
-  return [...meetings]
-    .filter((meeting) => meeting.status === "draft" && `${meeting.date || ""} ${meeting.startTime || "00:00"}` >= threshold)
+  const today = shanghaiDate(now);
+  const active = meetings.filter((meeting) => meeting.status !== "archived");
+  return [...active]
+    .filter((meeting) => meeting.date === today)
+    .sort((a, b) => `${a.startTime || "00:00"}`.localeCompare(`${b.startTime || "00:00"}`))[0]
+    || [...active]
+    .filter((meeting) => meeting.date > today)
     .sort((a, b) => `${a.date} ${a.startTime || "00:00"}`.localeCompare(`${b.date} ${b.startTime || "00:00"}`))[0] || null;
 }
 
@@ -53,11 +57,11 @@ export function sortMeetingsForPicker(meetings, now = new Date()) {
 }
 
 export function groupMeetingsForSwitchboard(meetings, now = new Date()) {
-  const threshold = `${shanghaiDate(now)} ${new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Shanghai", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(now)}`;
+  const today = shanghaiDate(now);
   const next = selectCurrentMeeting(meetings, now);
   const remaining = meetings.filter((meeting) => meeting !== next);
   const upcoming = remaining
-    .filter((meeting) => meeting.status === "draft" && `${meeting.date || ""} ${meeting.startTime || "00:00"}` >= threshold)
+    .filter((meeting) => meeting.status !== "archived" && meeting.date >= today)
     .sort((a, b) => `${a.date} ${a.startTime || "00:00"}`.localeCompare(`${b.date} ${b.startTime || "00:00"}`));
   const recent = remaining
     .filter((meeting) => !upcoming.includes(meeting))

@@ -1,9 +1,13 @@
 import { ApiError } from "./bitable.js";
+import { externalPresentationUrlError, normalizeExternalPresentationUrl } from "../external-presentation-url.js";
+import { normalizePresentationTheme } from "../presentation-themes.js";
+import { normalizeTableTopicsEntries } from "../table-topics-entries.js";
 
 const BLOCK_TYPES = new Set(["opening", "table_topics", "prepared_speeches", "evaluation", "break", "closing", "custom"]);
 const ITEM_KINDS = new Set(["role", "speech", "break"]);
 const MEETING_STATUSES = new Set(["draft", "final", "archived"]);
 const REVIEW_STATUSES = new Set(["pending", "completed", "skipped"]);
+const PRESENTATION_PHASES = new Set(["", "grammarian_intro", "grammarian_report", "timer_report"]);
 
 export function normalizeBlockType(value) {
   const normalized = asText(value);
@@ -22,16 +26,9 @@ function requiredText(value, label) {
 }
 
 function externalPresentationUrl(value) {
-  const normalized = String(value || "").trim();
-  if (!normalized) return "";
-  if (normalized.length > 2048) throw new ApiError(400, "INVALID_MEETING", "External presentation URL is too long.");
-  try {
-    const url = new URL(normalized);
-    if (url.protocol !== "https:" || !url.hostname || url.username || url.password) throw new Error();
-    return url.href;
-  } catch {
-    throw new ApiError(400, "INVALID_MEETING", "External presentation URL must be a valid HTTPS URL.");
-  }
+  const error = externalPresentationUrlError(value);
+  if (error) throw new ApiError(400, "INVALID_MEETING", error);
+  return normalizeExternalPresentationUrl(value);
 }
 
 export function normalizeItemStatus(value) {
@@ -41,12 +38,46 @@ export function normalizeItemStatus(value) {
   return "vacant";
 }
 
+export function normalizeOffAgendaRoles(value) {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set();
+  return value.map((entry) => ({
+    role: String(entry?.role || "").trim(),
+    memberId: String(entry?.memberId || "").trim(),
+    member: String(entry?.member || "").trim(),
+    signupOpen: entry?.signupOpen === true,
+  })).filter((entry) => {
+    if (!entry.role || seen.has(entry.role)) return false;
+    seen.add(entry.role);
+    return true;
+  });
+}
+
+const CONTEST_PLACE_KEYS = ["first", "second", "third"];
+
+export function normalizeContestResults(value) {
+  const results = {};
+  const seen = new Set();
+  for (const key of CONTEST_PLACE_KEYS) {
+    const name = String(value?.[key]?.name || "").trim();
+    if (!name) continue;
+    const memberId = String(value[key].memberId || "").trim();
+    const identity = memberId || name.toLocaleLowerCase();
+    if (seen.has(identity)) throw new ApiError(400, "INVALID_CONTEST_RESULTS", "The same contestant cannot hold two places.");
+    seen.add(identity);
+    results[key] = { memberId, name };
+  }
+  return results;
+}
+
 export function normalizeMeeting(input) {
   if (!input || typeof input !== "object") throw new ApiError(400, "INVALID_MEETING", "Meeting payload is required.");
   const blocks = Array.isArray(input.blocks) ? input.blocks : [];
   if (!blocks.length) throw new ApiError(400, "INVALID_MEETING", "A meeting needs at least one block.");
 
   const status = MEETING_STATUSES.has(input.status) ? input.status : "draft";
+  const tableTopicsEntries = normalizeTableTopicsEntries(input.tableTopicsEntries, input.tableTopicsSpeakers);
+  const currentTableTopicsEntryId = String(input.currentTableTopicsEntryId || "").trim();
   const meeting = {
     id: requiredText(input.id, "Meeting ID"),
     meetingNumber: Number(input.meetingNumber),
@@ -54,12 +85,14 @@ export function normalizeMeeting(input) {
     startTime: requiredText(input.startTime, "Start time"),
     theme: status === "draft" ? String(input.theme || "").trim() : requiredText(input.theme, "Theme"),
     meetingType: String(input.meetingType || "regular_meeting"),
+    presentationTheme: normalizePresentationTheme(input.presentationTheme),
     status,
     venue: String(input.venue || "").trim(),
     votingCode: String(input.votingCode || "").trim(),
     qrSource: input.qrSource === "manual" ? "manual" : "system",
-    tableTopicsSpeakers: [...new Set((Array.isArray(input.tableTopicsSpeakers) ? input.tableTopicsSpeakers : [])
-      .map((name) => String(name || "").trim()).filter(Boolean))],
+    tableTopicsEntries,
+    tableTopicsSpeakers: tableTopicsEntries.filter((entry) => !entry.placeholder).map((entry) => entry.name),
+    currentTableTopicsEntryId: tableTopicsEntries.some((entry) => entry.id === currentTableTopicsEntryId) ? currentTableTopicsEntryId : "",
     votingForm: input.votingForm && typeof input.votingForm === "object" ? input.votingForm : null,
     review: input.review && typeof input.review === "object" ? input.review : null,
     reviewStatus: REVIEW_STATUSES.has(input.reviewStatus) ? input.reviewStatus : "pending",
@@ -71,9 +104,14 @@ export function normalizeMeeting(input) {
     photographer: String(input.photographer || "").trim(),
     meetingManagerMemberId: String(input.meetingManagerMemberId || "").trim(),
     meetingManager: String(input.meetingManager || "").trim(),
+    offAgendaRoles: normalizeOffAgendaRoles(input.offAgendaRoles),
+    contestResults: normalizeContestResults(input.contestResults),
     wordOfDay: {
       word: String(input.wordOfDay?.word || "").trim(),
       pronunciation: String(input.wordOfDay?.pronunciation || "").trim(),
+      partOfSpeech: String(input.wordOfDay?.partOfSpeech || "").trim(),
+      definition: String(input.wordOfDay?.definition || "").trim(),
+      usage: String(input.wordOfDay?.usage || "").trim(),
       example: String(input.wordOfDay?.example || "").trim(),
     },
     revision: Number(input.revision || 0),
@@ -101,6 +139,7 @@ export function normalizeMeeting(input) {
           evaluator: String(item.evaluator || ""),
           evaluatorStatus: kind === "speech" ? normalizeItemStatus(item.evaluatorStatus) : "",
           roleAssignmentId: String(item.roleAssignmentId || "").trim(),
+          presentationPhase: PRESENTATION_PHASES.has(String(item.presentationPhase || "").trim()) ? String(item.presentationPhase || "").trim() : "",
           linkedSpeechId: String(item.linkedSpeechId || "").trim(),
           pathwaysMode: ["pathways", "custom"].includes(item.pathwaysMode) ? item.pathwaysMode : "",
           pathwaysPath: String(item.pathwaysPath || "").trim(),
@@ -108,7 +147,7 @@ export function normalizeMeeting(input) {
           pathwaysProjectId: String(item.pathwaysProjectId || "").trim(),
           pathwaysFormId: String(item.pathwaysFormId || "").trim(),
           speechObjective: String(item.speechObjective || ""),
-          externalPresentationUrl: kind === "break" ? "" : externalPresentationUrl(item.externalPresentationUrl),
+          externalPresentationUrl: externalPresentationUrl(item.externalPresentationUrl),
           status: kind === "break" ? "" : normalizeItemStatus(item.status),
           orderIndex: itemIndex,
         };

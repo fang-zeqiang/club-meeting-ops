@@ -51,6 +51,16 @@ function verifySignedValue(value, prefix, type, now = Date.now()) {
   return payload;
 }
 
+// RFC 8707 audience check. Tokens issued before this landed carry no `aud` claim; they
+// are honored until they expire naturally (access: 1h, refresh: 30d) instead of being
+// force-revoked, so this doubles as the rollout grace period without extra bookkeeping.
+function verifyAudience(payload, expectedAud) {
+  if (payload.aud !== undefined && payload.aud !== expectedAud) {
+    throw new ApiError(401, "INVALID_OAUTH_TOKEN", "OAuth token audience mismatch.");
+  }
+  return payload;
+}
+
 function isEnabled(value) {
   return value === true || value === 1 || String(value).toLocaleLowerCase() === "true";
 }
@@ -113,10 +123,10 @@ async function enabledPrincipal(id) {
   return (await accessEntries()).find((entry) => entry.id === id) || null;
 }
 
-export async function authenticateMcpBearer(token) {
+export async function authenticateMcpBearer(token, request) {
   const supplied = String(token || "");
   if (supplied.startsWith("vpe_oauth_")) {
-    const payload = verifySignedValue(supplied, "vpe_oauth_", "access");
+    const payload = verifyAudience(verifySignedValue(supplied, "vpe_oauth_", "access"), `${requestOrigin(request)}/api/mcp`);
     return enabledPrincipal(payload.sub);
   }
   return principalForPersonalToken(supplied);
@@ -288,10 +298,10 @@ async function handleAuthorize(request, response) {
   return sendAuthorizationSuccess(response, redirect, params.client.name);
 }
 
-function issueTokens({ sub, name, cid, scope = "mcp offline_access" }) {
+function issueTokens({ sub, name, cid, scope = "mcp offline_access" }, aud) {
   const now = Math.floor(Date.now() / 1000);
   return {
-    access_token: signedValue("vpe_oauth_", { typ: "access", sub, name, cid, exp: now + ACCESS_TTL_SECONDS }),
+    access_token: signedValue("vpe_oauth_", { typ: "access", sub, name, cid, aud, exp: now + ACCESS_TTL_SECONDS }),
     token_type: "Bearer",
     expires_in: ACCESS_TTL_SECONDS,
     refresh_token: signedValue("vpe_refresh_", { typ: "refresh", sub, name, cid, scope, exp: now + REFRESH_TTL_SECONDS }),
@@ -302,6 +312,7 @@ function issueTokens({ sub, name, cid, scope = "mcp offline_access" }) {
 async function handleToken(request, response) {
   if (request.method !== "POST") return oauthError(response, 405, "invalid_request", "Use POST.");
   const body = await readForm(request);
+  const aud = `${requestOrigin(request)}/api/mcp`;
   try {
     if (body.grant_type === "authorization_code") {
       const code = verifySignedValue(body.code, "vpe_code_", "code");
@@ -310,13 +321,13 @@ async function handleToken(request, response) {
       const challenge = crypto.createHash("sha256").update(verifier).digest("base64url");
       if (!/^[A-Za-z0-9._~-]{43,128}$/.test(verifier) || !safeEqual(challenge, code.challenge)) throw new Error();
       if (!await enabledPrincipal(code.sub)) return oauthError(response, 400, "invalid_grant", "Access is disabled.");
-      return sendJson(response, 200, issueTokens(code));
+      return sendJson(response, 200, issueTokens(code, aud));
     }
     if (body.grant_type === "refresh_token") {
       const refresh = verifySignedValue(body.refresh_token, "vpe_refresh_", "refresh");
       if (refresh.cid !== clientHash(body.client_id)) throw new Error();
       if (!await enabledPrincipal(refresh.sub)) return oauthError(response, 400, "invalid_grant", "Access is disabled.");
-      return sendJson(response, 200, issueTokens(refresh));
+      return sendJson(response, 200, issueTokens(refresh, aud));
     }
   } catch {
     return oauthError(response, 400, "invalid_grant", "Authorization grant is invalid or expired.");

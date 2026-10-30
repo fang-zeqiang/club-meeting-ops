@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { checkExternalPublicUrl, isPublicIp } from "../server/external-public-url.js";
+import { verifyAgendaImageLink } from "../server/agenda-image-link.js";
 import {
   agendaTimeline,
   createAgendaEditService,
@@ -418,6 +419,122 @@ test("fast-track automatically retries one unrelated revision change", async () 
   }, principal, "https://agenda.example");
   assert.equal(result.retried, true);
   assert.equal(result.afterRevision, 25);
+});
+
+test("fast-track creates a missing Guest then assigns the Agenda role", async () => {
+  const createdGuests = [];
+  const { service, getMeeting } = harness(sampleMeeting(), {
+    createGuestMember: async ({ displayName }) => {
+      const member = { id: "guest_nora", displayName, active: true, memberType: "guest_placeholder" };
+      createdGuests.push(member);
+      return member;
+    },
+  });
+  const result = await service.change({
+    meeting_number: 105,
+    changes: [{ op: "set_item_field", target: "Timer Intro", field: "member", guest_name: "Nora, Guest" }],
+  }, principal, "https://agenda.example");
+  assert.equal(result.verified, true);
+  assert.deepEqual(createdGuests, [{ id: "guest_nora", displayName: "Nora, Guest", active: true, memberType: "guest_placeholder" }]);
+  assert.deepEqual(getMeeting().blocks.map((block) => block.items[0].memberId), ["guest_nora", "guest_nora"]);
+});
+
+test("fast-track reuses an exact Guest without creating another", async () => {
+  let created = false;
+  const { service, getMeeting } = harness(sampleMeeting(), {
+    getMembers: async () => [{ id: "guest_nora", displayName: "Nora, Guest", active: true, memberType: "guest_placeholder" }],
+    createGuestMember: async () => { created = true; throw new Error("must not create duplicate Guest"); },
+  });
+  await service.change({
+    meeting_number: 105,
+    changes: [{ op: "set_item_field", target: "Timer Intro", field: "member", guest_name: "Nora, Guest" }],
+  }, principal, "https://agenda.example");
+  assert.equal(created, false);
+  assert.deepEqual(getMeeting().blocks.map((block) => block.items[0].memberId), ["guest_nora", "guest_nora"]);
+});
+
+test("fast-track creates a Guest then assigns evaluator", async () => {
+  const meeting = sampleMeeting();
+  meeting.blocks[0].items.push({
+    id: "speech-1", kind: "speech", session: "Speech", role: "Prepared Speaker", duration: 7,
+    memberId: "member_alice", member: "Alice", evaluatorId: "", evaluator: "", evaluatorStatus: "vacant",
+    roleAssignmentId: "", linkedSpeechId: "", externalPresentationUrl: "", status: "confirmed",
+  });
+  const { service, getMeeting } = harness(meeting, {
+    createGuestMember: async ({ displayName }) => ({ id: "guest_nora", displayName, active: true, memberType: "guest_placeholder" }),
+  });
+  const result = await service.change({
+    meeting_number: 105,
+    changes: [{ op: "set_item_field", target: "Speech", field: "evaluator", guest_name: "Nora, Guest" }],
+  }, principal, "https://agenda.example");
+  assert.equal(result.verified, true);
+  const speech = getMeeting().blocks[0].items.at(-1);
+  assert.equal(speech.evaluatorId, "guest_nora");
+  assert.equal(speech.evaluator, "Nora, Guest");
+  assert.equal(speech.evaluatorStatus, "confirmed");
+});
+
+test("fast-track reuses an exact Guest as evaluator", async () => {
+  const meeting = sampleMeeting();
+  meeting.blocks[0].items.push({
+    id: "speech-1", kind: "speech", session: "Speech", role: "Prepared Speaker", duration: 7,
+    memberId: "member_alice", member: "Alice", evaluatorId: "", evaluator: "", evaluatorStatus: "vacant",
+    roleAssignmentId: "", linkedSpeechId: "", externalPresentationUrl: "", status: "confirmed",
+  });
+  let created = false;
+  const { service, getMeeting } = harness(meeting, {
+    getMembers: async () => [{ id: "guest_nora", displayName: "Nora, Guest", active: true, memberType: "guest_placeholder" }],
+    createGuestMember: async () => { created = true; throw new Error("must not create duplicate Guest"); },
+  });
+  await service.change({
+    meeting_number: 105,
+    changes: [{ op: "set_item_field", target: "Speech", field: "evaluator", guest_name: "Nora, Guest" }],
+  }, principal, "https://agenda.example");
+  assert.equal(created, false);
+  assert.equal(getMeeting().blocks[0].items.at(-1).evaluatorId, "guest_nora");
+});
+
+test("fast-track creates a Guest then assigns Meeting Manager", async () => {
+  const { service, getMeeting } = harness(sampleMeeting(), {
+    createGuestMember: async ({ displayName }) => ({ id: "guest_nora", displayName, active: true, memberType: "guest_placeholder" }),
+  });
+  const result = await service.change({
+    meeting_number: 105,
+    changes: [{ op: "set_meeting_field", field: "meetingManager", guest_name: "Nora, Guest" }],
+  }, principal, "https://agenda.example");
+  assert.equal(result.verified, true);
+  assert.equal(getMeeting().meetingManager, "Nora, Guest");
+  assert.equal(getMeeting().meetingManagerMemberId, "guest_nora");
+});
+
+test("fast-track reuses an exact Guest as Photographer", async () => {
+  let created = false;
+  const { service, getMeeting } = harness(sampleMeeting(), {
+    getMembers: async () => [{ id: "guest_nora", displayName: "Nora, Guest", active: true, memberType: "guest_placeholder" }],
+    createGuestMember: async () => { created = true; throw new Error("must not create duplicate Guest"); },
+  });
+  await service.change({
+    meeting_number: 105,
+    changes: [{ op: "set_meeting_field", field: "photographer", guest_name: "Nora, Guest" }],
+  }, principal, "https://agenda.example");
+  assert.equal(created, false);
+  assert.equal(getMeeting().photographer, "Nora, Guest");
+  assert.equal(getMeeting().photographerMemberId, "guest_nora");
+});
+
+test("invalid Guest assignment rejects before Guest creation", async () => {
+  let created = false;
+  const { service } = harness(sampleMeeting(), {
+    createGuestMember: async () => { created = true; throw new Error("must not create Guest"); },
+  });
+  await assert.rejects(
+    () => service.change({
+      meeting_number: 105,
+      changes: [{ op: "set_meeting_field", field: "theme", guest_name: "Nora, Guest" }],
+    }, principal, "https://agenda.example"),
+    (error) => error.code === "INVALID_GUEST_ASSIGNMENT",
+  );
+  assert.equal(created, false);
 });
 
 test("fast-track preserves an unrelated concurrent write and retries after a storage conflict", async () => {
@@ -854,4 +971,103 @@ test("external URL checks block private destinations and classify bounded provid
     fetchImpl: async () => new Response("请登录后申请权限", { status: 200 }),
   });
   assert.equal(privateResult.status, "private");
+});
+
+test("change with a docs.qq.com URL whose check hits a network error returns a confirmation proposal", async () => {
+  const { service, getMeeting } = harness(sampleMeeting(), {
+    checkExternalPublicUrl: (url) => checkExternalPublicUrl(url, {
+      lookup: async () => [{ address: "8.8.8.8", family: 4 }],
+      fetchImpl: async () => { throw new Error("socket hang up"); },
+    }),
+  });
+  const proposal = await service.change({
+    meeting_number: 105,
+    changes: [{ op: "set_item_field", target: "Timer Intro", field: "externalPresentationUrl", value: "https://docs.qq.com/slide/DTEST" }],
+  }, principal, "https://agenda.example");
+
+  assert.equal(proposal.confirmationRequired, true);
+  assert.deepEqual(proposal.confirmationReasons, ["EXTERNAL_URL_UNKNOWN"]);
+  assert.equal(getMeeting().revision, 23);
+});
+
+async function applyDirectOrConfirm(service, result) {
+  if (!result.confirmationRequired) return result;
+  return service.change({ proposal_id: result.proposalId, confirmed: true }, principal, "https://agenda.example");
+}
+
+test("add_item accepts kind=break without any RoleCatalog role", async () => {
+  const { service, getMeeting } = harness();
+  const result = await applyDirectOrConfirm(service, await service.change({
+    meeting_number: 105,
+    changes: [{ op: "add_item", parent_session: "Closing", title: "Buffer", kind: "break", duration: 2 }],
+  }, principal, "https://agenda.example"));
+  assert.equal(result.verified, true);
+  assert.deepEqual(getMeeting().blocks[1].items.map(({ session, kind, role }) => ({ session, kind, role })), [
+    { session: "Timer Report", kind: "role", role: "Timer" },
+    { session: "Buffer", kind: "break", role: "" },
+  ]);
+});
+
+test("add_item insert_at_session_start puts the new item first, and rejects combining it with after", async () => {
+  const { service, getMeeting } = harness();
+  await assert.rejects(
+    service.change({
+      meeting_number: 105,
+      changes: [{ op: "add_item", parent_session: "Closing", title: "Buffer", kind: "break", duration: 2, after: "Timer Report", insert_at_session_start: true }],
+    }, principal, "https://agenda.example"),
+    (error) => error.code === "INVALID_OPERATION" && /exactly one of after or insert_at_session_start/.test(error.message),
+  );
+  await applyDirectOrConfirm(service, await service.change({
+    meeting_number: 105,
+    changes: [{ op: "add_item", parent_session: "Closing", title: "Buffer", kind: "break", duration: 2, insert_at_session_start: true }],
+  }, principal, "https://agenda.example"));
+  assert.deepEqual(getMeeting().blocks[1].items.map(({ session }) => session), ["Buffer", "Timer Report"]);
+});
+
+test("ambiguous target candidates carry item ids, and target_id resolves the exact row unambiguously", async () => {
+  const { service, getMeeting } = harness();
+  const error = await service.change({ meeting_number: 105, changes: [{ op: "remove_item", target: "Timer" }] }, principal, "https://agenda.example").catch((caught) => caught);
+  assert.equal(error.code, "AGENDA_TARGET_AMBIGUOUS");
+  const [firstCandidate] = error.details.candidates;
+  assert.ok(firstCandidate.id);
+
+  await assert.rejects(
+    service.change({ meeting_number: 105, changes: [{ op: "remove_item", target: "Timer", target_id: firstCandidate.id }] }, principal, "https://agenda.example"),
+    (caught) => caught.code === "INVALID_OPERATION" && /exactly one of target or target_id/.test(caught.message),
+  );
+
+  await applyDirectOrConfirm(service, await service.change({ meeting_number: 105, changes: [{ op: "remove_item", target_id: firstCandidate.id }] }, principal, "https://agenda.example"));
+  assert.equal(getMeeting().blocks.flatMap((block) => block.items).some(({ id }) => id === firstCandidate.id), false);
+});
+
+test("a change deep in a batch fails with its index and op named in the error", async () => {
+  const { service } = harness();
+  await assert.rejects(
+    service.change({
+      meeting_number: 105,
+      changes: [
+        { op: "set_item_field", target: "Timer Intro", field: "duration", value: 5 },
+        { op: "remove_item", target: "Nonexistent Session" },
+      ],
+    }, principal, "https://agenda.example"),
+    (error) => error.code === "AGENDA_TARGET_NOT_FOUND"
+      && error.details.changeIndex === 1
+      && error.details.changeOp === "remove_item"
+      && /Change #2 \(remove_item\)/.test(error.message),
+  );
+});
+
+test("vpe_change_agenda writes and undo both return a verifiable Agenda image link", async () => {
+  const { service } = harness();
+  const proposal = await service.change({
+    meeting_number: 105,
+    changes: [{ op: "rename_session", target: "Closing", title: "Wrap Up" }],
+  }, principal, "https://agenda.example");
+  const applied = await service.change({ proposal_id: proposal.proposalId, confirmed: true }, principal, "https://agenda.example");
+  assert.match(applied.imageUrl, /^https:\/\/agenda\.example\/api\/meetings\/meeting_105\?action=png&sig=[^&]+&exp=\d+$/);
+  const [, sig, exp] = applied.imageUrl.match(/sig=([^&]+)&exp=(\d+)/);
+  assert.equal(verifyAgendaImageLink("meeting_105", sig, Number(exp)), true);
+
+  const undone = await service.undoLast({ meeting_number: 105 }, principal, "https://agenda.example");
+  assert.match(undone.imageUrl, /^https:\/\/agenda\.example\/api\/meetings\/meeting_105\?action=png&sig=[^&]+&exp=\d+$/);
 });

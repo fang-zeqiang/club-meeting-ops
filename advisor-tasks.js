@@ -19,6 +19,41 @@ function agendaIssueCard(issue, count) {
   });
 }
 
+export const MEETING_PHASES = [
+  { id: "recruit", label: "Recruit and coordinate" },
+  { id: "prepare", label: "Prepare meeting" },
+  { id: "finalize", label: "Finalize and rehearse" },
+  { id: "run", label: "Run meeting" },
+  { id: "close", label: "Close meeting" },
+];
+
+function agendaItems(meeting) {
+  return (meeting.blocks || []).flatMap((block) => block.items || []);
+}
+
+function noVacantKeyRoles(meeting) {
+  return agendaItems(meeting).every((item) => item.kind === "break" || (item.member || "").trim());
+}
+
+function preparedSpeakerInfoComplete(meeting) {
+  return agendaItems(meeting).filter((item) => item.kind === "speech").every((speech) => {
+    const pathways = speech.pathwaysMode === "pathways" && speech.pathwaysPath && speech.pathwaysLevel && speech.pathwaysProjectId && speech.pathwaysFormId;
+    const custom = speech.pathwaysMode === "custom" && speech.speechObjective;
+    return Boolean(speech.member && speech.evaluator && (pathways || custom));
+  });
+}
+
+// Later phases require every earlier phase to hold, so the stepper always shows a contiguous done/current/upcoming run.
+export function buildMeetingPhases({ meeting, votingResults = null, awards = null } = {}) {
+  const done = {};
+  done.recruit = Boolean(meeting) && noVacantKeyRoles(meeting);
+  done.prepare = done.recruit && preparedSpeakerInfoComplete(meeting) && Boolean(meeting.wordOfDay?.word);
+  done.finalize = done.prepare && meeting.status === "final";
+  done.run = done.finalize && Number(votingResults?.responseCount || 0) > 0 && Boolean(awards?.ready);
+  done.close = done.run && ["completed", "skipped"].includes(meeting.reviewStatus);
+  return MEETING_PHASES.map((phase) => ({ ...phase, done: done[phase.id] }));
+}
+
 function reviewDoneState(status) {
   if (!["completed", "skipped"].includes(status)) return null;
   return {
@@ -97,24 +132,24 @@ export function buildAdvisorTasks({ meeting, issues = [], votingResults = null, 
       action: action("Start voting", "live", "start-voting"),
     });
     next.push(card({
-      title: "Confirm results",
+      title: "Review results",
       reason: "Refresh voting results after ballots come in.",
       source: "Awards",
       urgency: "Soon",
-      action: action("Confirm results", "live", "voting-console"),
+      action: action("Review results", "live", "voting-console"),
     }));
-  } else if (!awards?.confirmedAwards) {
+  } else if (!awards?.ready) {
     now = card({
-      title: "Confirm results",
+      title: "Review results",
       reason: `${votingResults.responseCount} voting response${votingResults.responseCount === 1 ? "" : "s"} loaded.`,
       source: "Awards",
       urgency: "Now",
-      action: action("Confirm results", "live", "voting-console"),
+      action: action("Review results", "live", "voting-console"),
     });
   } else {
     now = card({
       title: "Complete review",
-      reason: "Awards are confirmed. Close the meeting review loop.",
+      reason: "Live awards are ready. Close the meeting review loop.",
       source: "Review",
       urgency: "Now",
       tone: "done",

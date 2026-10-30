@@ -1,7 +1,7 @@
 import { ApiError } from "./bitable.js";
 import { asText } from "./meeting-schema.js";
-import { recognitionAwardConfig, roleIdentity } from "../role-awards.js";
-import { AWARD_DEFINITIONS } from "../award-order.js";
+import { AWARD_DEFINITIONS, ceremonyAwards } from "../award-order.js";
+import { CLUB_PROFILE } from "../club-profile.js";
 
 export const AWARD_TYPES = AWARD_DEFINITIONS;
 
@@ -37,11 +37,10 @@ function preparedSpeeches(meeting) {
 }
 
 export function recognitionAwardResults(meeting) {
-  const config = recognitionAwardConfig(meeting.votingForm);
-  const sharingNames = config.sharingMasterNames.length ? config.sharingMasterNames : [...new Set((meeting.blocks || [])
+  const sharingNames = [...new Set((meeting.blocks || [])
     .flatMap((block) => block.items || [])
     .filter((item) => item.kind === "role" && item.status === "confirmed" && item.member)
-    .filter((item) => config.sharingMasterRoleIds.includes(roleIdentity(item.role, item.roleId).id))
+    .filter((item) => String(item.role || "").trim().toLocaleLowerCase() === "sharing master")
     .map((item) => String(item.member || "").trim())
     .filter(Boolean))];
   return [
@@ -60,6 +59,63 @@ export function recognitionAwardResults(meeting) {
       winners: [{ memberId: speech.memberId || "", name: speech.member, context: speech.session }],
     })),
   ];
+}
+
+const CONTEST_PLACES = [
+  { key: "third", type: "contest_third", title: "Third Place" },
+  { key: "second", type: "contest_second", title: "Second Place" },
+  { key: "first", type: "contest_first", title: "First Place" },
+];
+
+// 模拟赛：名次由 Ballot Counter 汇总后录入；未录入任何名次前不开放颁奖，避免只揭晓参赛证书
+export function contestAwardResults(meeting) {
+  const places = CONTEST_PLACES
+    .map(({ key, type, title }) => {
+      const winner = meeting.contestResults?.[key];
+      const name = String(winner?.name || "").trim();
+      return name ? { type, title, totalVotes: 0, candidates: [], winners: [{ memberId: winner.memberId || "", name }] } : null;
+    })
+    .filter(Boolean);
+  if (!places.length) return [];
+  const participation = recognitionAwardResults(meeting)
+    .filter((result) => result.type === "speech_completion")
+    .map((result) => ({ ...result, title: "Contest Participation" }));
+  return [...participation, ...places];
+}
+
+export function buildLiveAwardCeremony({
+  meeting,
+  results = [],
+  president = null,
+  responseCount = 0,
+  resultsVersion = "",
+  clubName = CLUB_PROFILE.awardClubName,
+}) {
+  const awards = ceremonyAwards(results
+    .filter((result) => result.winners?.length)
+    .map((result) => ({
+      type: result.type,
+      title: result.title,
+      winners: result.winners.map((winner) => ({
+        memberId: winner.memberId || "",
+        name: winner.name,
+        context: winner.context || "",
+      })),
+    })));
+  const signatory = { memberId: president?.memberId || "", name: president?.name || "" };
+  return {
+    meetingNumber: meeting.meetingNumber,
+    meetingDate: meeting.date,
+    clubName,
+    signatory,
+    responseCount,
+    resultsVersion,
+    results,
+    awards,
+    availableAwardCount: awards.length,
+    ready: awards.length > 0,
+    warnings: signatory.name ? [] : ["President 未配置 · 奖状签名将留空"],
+  };
 }
 
 export function assertWinnerNamesFit(awards) {

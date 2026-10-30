@@ -20,7 +20,27 @@ Optional tables:
 
 - learning-path projects and evaluation forms;
 - MCP personal tokens;
-- a separate voting Base with disposable voting tables.
+- a separate voting Base with disposable voting tables;
+- `MCP Agenda Changes`: audit log with inverse operations for conversational
+  Agenda and Role Booking writes. Required before enabling
+  `MCP_AGENDA_WRITE_ENABLED` or `MCP_BOOKING_WRITE_ENABLED`;
+- `MCP Tool Calls`: optional call log (`tool_name`, `status`, `error_code`,
+  `duration_ms`, `principal_id`, `principal_name`, `client_info`,
+  `args_digest`, `meeting_id`, `meeting_number`, `created_at`);
+- `Table Topics`: topic bank per meeting (`meeting_id`, `topic_text`,
+  `sort_order`, `created_by`, `created_at`);
+- Word of the Day bank, which may live in another Base (`WOD_BASE_TOKEN`,
+  `WOD_TABLE_ID`), with text fields `单词名`, `音标`, `词性`, `单词释义`, `单词例句`.
+
+Fields added since the first public release:
+
+- `Meetings`: `meeting_type`, `presentation_theme`, `off_agenda_roles_json`,
+  `table_topics_entries_json`, `current_table_topics_entry_id`, and
+  `wod_word`, `wod_pronunciation`, `wod_part_of_speech`, `wod_definition`,
+  `wod_usage`, `wod_example`.
+- `Items`: `presentation_phase`.
+
+Store timestamps as ISO strings in text fields and counters as numbers.
 
 `python3 scripts/create-bitable-tables.py` is a dry run. Add `--apply` only
 after setting your own app credentials and reviewing the target Base. Existing

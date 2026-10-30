@@ -33,11 +33,13 @@ export function getBitableConfig() {
     divisionTemplateVersionsTableId: process.env.BITABLE_DIVISION_TEMPLATE_VERSIONS_TABLE_ID,
     mcpTokensTableId: process.env.BITABLE_MCP_TOKENS_TABLE_ID,
     mcpAgendaChangesTableId: process.env.BITABLE_MCP_AGENDA_CHANGES_TABLE_ID,
+    mcpToolCallsTableId: process.env.BITABLE_MCP_TOOL_CALLS_TABLE_ID,
+    tableTopicsTableId: process.env.BITABLE_TABLE_TOPICS_TABLE_ID,
     memberDevelopmentProfilesTableId: process.env.BITABLE_MEMBER_DEVELOPMENT_PROFILES_TABLE_ID,
     recommendationExclusionsTableId: process.env.BITABLE_RECOMMENDATION_EXCLUSIONS_TABLE_ID,
     roleOutreachTableId: process.env.BITABLE_ROLE_OUTREACH_TABLE_ID,
   };
-  const optional = new Set(["divisionTemplateVersionsTableId", "rolesTableId", "pathwaysProjectsTableId", "pathwaysEvaluationFormsTableId", "mcpTokensTableId", "mcpAgendaChangesTableId", "memberDevelopmentProfilesTableId", "recommendationExclusionsTableId", "roleOutreachTableId"]);
+  const optional = new Set(["divisionTemplateVersionsTableId", "rolesTableId", "pathwaysProjectsTableId", "pathwaysEvaluationFormsTableId", "mcpTokensTableId", "mcpAgendaChangesTableId", "mcpToolCallsTableId", "tableTopicsTableId", "memberDevelopmentProfilesTableId", "recommendationExclusionsTableId", "roleOutreachTableId"]);
   const missing = Object.entries(config).filter(([key, value]) => !optional.has(key) && !value).map(([key]) => key);
   if (missing.length) throw new ApiError(503, "BITABLE_NOT_CONFIGURED", "Bitable persistence is not configured.", { missing });
   return config;

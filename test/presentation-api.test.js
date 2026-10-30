@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { toGuestMeeting, toPresentationMeeting } from "../server/presentation-repository.js";
+import { toGuestMeeting, toPresentationMeeting, toTableTopicsLiveMeeting } from "../server/presentation-repository.js";
 
 const meetingApi = await readFile(new URL("../api/meetings/[id].js", import.meta.url), "utf8");
 const votingApi = await readFile(new URL("../api/meetings/[id]/voting.js", import.meta.url), "utf8");
@@ -11,10 +11,19 @@ const awardsApi = await readFile(new URL("../api/meetings/[id]/awards.js", impor
 const meetingsApi = await readFile(new URL("../api/meetings/index.js", import.meta.url), "utf8");
 
 test("public presentation APIs do not require an editing session", () => {
+  const drawTopic = meetingApi.indexOf('request.method === "POST" && request.query.action === "draw-topic"');
   assert.ok(meetingApi.indexOf('request.query.view === "presentation"') < meetingApi.indexOf("if (!requireSession(request, response))"));
-  assert.match(votingApi, /publicPresentationImage && !requireSession|!publicPresentationImage && !requireSession/);
+  assert.ok(meetingApi.indexOf('request.query.action === "table-topics-remaining"') < meetingApi.indexOf("if (!requireSession(request, response))"));
+  assert.ok(drawTopic < meetingApi.indexOf("if (!requireSession(request, response))", drawTopic));
+  assert.match(votingApi, /!publicPresentationImage && !publicTableTopicsWrite && !requireSession/);
   assert.match(votingImageApi, /publicPresentationImage && !requireSession|!publicPresentationImage && !requireSession/);
   assert.ok(awardsApi.indexOf('request.query.view === "confirmed"') < awardsApi.indexOf("if (!requireSession(request, response))"));
+});
+
+test("public Table Topics entry writes use the existing voting route", () => {
+  assert.match(votingApi, /action === "table-topics-entries"/);
+  assert.match(votingApi, /saveTableTopicsEntries\(meetingId, body\.entries/);
+  assert.match(votingApi, /publicTableTopicsWrite/);
 });
 
 test("public presentation data excludes editor-only meeting fields", () => {
@@ -23,6 +32,8 @@ test("public presentation data excludes editor-only meeting fields", () => {
     meetingNumber: 101,
     date: "2026-07-14",
     theme: "Share",
+    enableTransitionTime: true,
+    meetingType: "contest",
     status: "draft",
     revision: 9,
     review: { private: true },
@@ -51,6 +62,8 @@ test("public presentation data excludes editor-only meeting fields", () => {
   });
 
   assert.equal(meeting.meetingNumber, 101);
+  assert.equal(meeting.enableTransitionTime, true);
+  assert.equal(meeting.meetingType, "contest");
   assert.equal(meeting.blocks[0].items[0].member, "Alex");
   assert.equal(meeting.blocks[0].items[0].externalPresentationUrl, "https://example.com/slides/demo");
   assert.equal("votingForm" in meeting, false);
@@ -58,6 +71,33 @@ test("public presentation data excludes editor-only meeting fields", () => {
   assert.equal("revision" in meeting, false);
   assert.equal("notes" in meeting.blocks[0], false);
   assert.equal("memberId" in meeting.blocks[0].items[0], false);
+  assert.equal("tableTopics" in meeting, false);
+  assert.equal(JSON.stringify(meeting).includes("topicText"), false);
+});
+
+test("public Table Topics live data exposes only display-safe entry fields", () => {
+  const live = toTableTopicsLiveMeeting({
+    id: "meeting_101",
+    meetingNumber: 101,
+    revision: 9,
+    currentTableTopicsEntryId: "speaker-2",
+    votingForm: { editUrl: "https://example.test/private" },
+    tableTopicsEntries: [
+      { id: "speaker-1", name: "Ada", order: 1, durationSeconds: 83, placeholder: false, aliases: ["Ada Lovelace"] },
+      { id: "speaker-2", name: "待补录", order: 2, durationSeconds: null, placeholder: true, aliases: [] },
+    ],
+  });
+
+  assert.deepEqual(live, {
+    id: "meeting_101",
+    meetingNumber: 101,
+    revision: 9,
+    currentTableTopicsEntryId: "speaker-2",
+    tableTopicsEntries: [
+      { id: "speaker-1", name: "Ada", order: 1, durationSeconds: 83, placeholder: false },
+      { id: "speaker-2", name: "待补录", order: 2, durationSeconds: null, placeholder: true },
+    ],
+  });
 });
 
 test("guest Agenda data is final-only and excludes management fields", () => {

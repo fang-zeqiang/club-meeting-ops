@@ -1,21 +1,27 @@
 import { requireSession } from "../../../server/auth.js";
 import { handleApiError, methodNotAllowed, readJson, sendJson, verifySameOrigin } from "../../../server/http.js";
 import { getSystemVotingImage, readStoredImage } from "../../../server/media-repository.js";
+import { takeTableTopicsWriteToken } from "../../../table-topics-rate-limit.js";
 import {
   authorizeVotingEditors, clearVotingResponses, getVotingFormStatus, getVotingResults, prepareVotingForm,
-  saveTableTopicsSpeakers, setVotingQrSource, syncVotingForm,
+  saveTableTopicsEntries, saveTableTopicsSpeakers, setVotingQrSource, syncVotingForm,
 } from "../../../server/voting-repository.js";
 
 const value = (input) => Array.isArray(input) ? input[0] : input;
+const publicTableTopicsWriteBuckets = new Map();
 
 export default async function handler(request, response) {
   try {
     const meetingId = value(request.query.id);
     const action = value(request.query.action) || "status";
     const publicPresentationImage = request.method === "GET" && action === "system-image" && value(request.query.view) === "presentation";
-    if (!publicPresentationImage && !requireSession(request, response)) return;
+    const publicTableTopicsWrite = request.method === "PUT" && action === "table-topics-entries";
+    if (!publicPresentationImage && !publicTableTopicsWrite && !requireSession(request, response)) return;
     if (["POST", "PUT", "DELETE"].includes(request.method) && !verifySameOrigin(request)) {
       return sendJson(response, 403, { code: "INVALID_ORIGIN", message: "Request origin is not allowed." });
+    }
+    if (publicTableTopicsWrite && !takeTableTopicsWriteToken(publicTableTopicsWriteBuckets, meetingId)) {
+      return sendJson(response, 429, { code: "TABLE_TOPICS_RATE_LIMITED", message: "操作太频繁，请稍后重试。" });
     }
     if (request.method === "GET" && action === "status") return sendJson(response, 200, await getVotingFormStatus(meetingId));
     if (request.method === "GET" && action === "results") return sendJson(response, 200, await getVotingResults(meetingId));
@@ -38,6 +44,13 @@ export default async function handler(request, response) {
       return sendJson(response, 200, await saveTableTopicsSpeakers(meetingId, body.speakers, {
         confirmResponseReset: body.confirmResponseReset === true,
         tableIdHint: String(body.tableId || ""),
+      }));
+    }
+    if (request.method === "PUT" && action === "table-topics-entries") {
+      const body = await readJson(request);
+      return sendJson(response, 200, await saveTableTopicsEntries(meetingId, body.entries, {
+        currentTableTopicsEntryId: String(body.currentTableTopicsEntryId || ""),
+        confirmResponseReset: body.confirmResponseReset === true,
       }));
     }
     if (request.method === "DELETE" && action === "responses") return sendJson(response, 200, await clearVotingResponses(meetingId));

@@ -132,6 +132,23 @@ function classify(provider, response, body, finalUrl) {
   return { status: "unknown", reason: "Anonymous public access could not be determined reliably." };
 }
 
+// 把连接钉到已通过 SSRF 校验的地址。Node 20+ 默认开启 autoSelectFamily,会以 { all: true } 调用 lookup,
+// 此时回调必须给地址数组;只回单个地址会让每次真实抓取都抛 ERR_INVALID_IP_ADDRESS。
+export function pinnedLookup(address) {
+  const family = address.family || net.isIP(address.address);
+  return (_hostname, options, callback) => {
+    if (options?.all) callback(null, [{ address: address.address, family }]);
+    else callback(null, address.address, family);
+  };
+}
+
+// 网络错误、超时、重定向异常等无法给出确定结论的情况统一降级为 unknown,走 proposal + 用户确认。
+const INCONCLUSIVE_REASON = "The URL could not be checked automatically (network error, timeout or redirect issue). Verify anonymous access in a private window.";
+
+function inconclusiveHttpStatus(status) {
+  return status === 408 || status === 429 || status >= 500;
+}
+
 function pinnedFetch(url, provider, address, { headers = {}, timeoutMs = TIMEOUT_MS } = {}) {
   const hostname = provider === "tencent-docs" ? "docs.qq.com" : "feishu.cn";
   return new Promise((resolve, reject) => {
@@ -143,7 +160,7 @@ function pinnedFetch(url, provider, address, { headers = {}, timeoutMs = TIMEOUT
       method: "GET",
       headers,
       servername: hostname,
-      lookup: (_hostname, _options, callback) => callback(null, address.address, address.family),
+      lookup: pinnedLookup(address),
     }, (response) => {
       resolve(new Response(Readable.toWeb(response), { status: response.statusCode, headers: response.headers }));
     });
@@ -194,6 +211,9 @@ export async function checkExternalPublicUrl(value, {
         continue;
       }
       if (!response.ok) {
+        if (inconclusiveHttpStatus(response.status)) {
+          return { url: parseExternalUrl(value).href, finalUrl: url.href, provider, status: "unknown", reason: `Provider returned HTTP ${response.status}. ${INCONCLUSIVE_REASON}`, checkedAt: now.toISOString() };
+        }
         return { url: parseExternalUrl(value).href, finalUrl: url.href, provider, status: "unreachable", reason: `Provider returned HTTP ${response.status}.`, checkedAt: now.toISOString() };
       }
       const body = await boundedText(response);
@@ -201,7 +221,7 @@ export async function checkExternalPublicUrl(value, {
     }
   } catch (error) {
     if (error instanceof ApiError) throw error;
-    return { url: parseExternalUrl(value).href, finalUrl: url.href, provider, status: "unreachable", reason: "The URL timed out or could not be loaded.", checkedAt: now.toISOString() };
+    return { url: parseExternalUrl(value).href, finalUrl: url.href, provider, status: "unknown", reason: INCONCLUSIVE_REASON, checkedAt: now.toISOString() };
   }
   throw new ApiError(400, "EXTERNAL_URL_UNREACHABLE", "External URL could not be checked.");
 }

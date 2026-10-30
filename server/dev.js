@@ -57,6 +57,8 @@ export function matchApiRoute(pathname) {
 
   const awardsMatch = pathname.match(/^\/api\/meetings\/([^/]+)\/awards$/);
   if (awardsMatch) return { handler: awardsHandler, params: { id: decodeURIComponent(awardsMatch[1]) } };
+  const reviewMatch = pathname.match(/^\/api\/meetings\/([^/]+)\/review$/);
+  if (reviewMatch) return { handler: meetingHandler, params: { id: decodeURIComponent(reviewMatch[1]), action: "review" } };
   const meetingMatch = pathname.match(/^\/api\/meetings\/([^/]+)$/);
   if (meetingMatch) return { handler: meetingHandler, params: { id: decodeURIComponent(meetingMatch[1]) } };
 

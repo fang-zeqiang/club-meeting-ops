@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildAdvisorTasks } from "../advisor-tasks.js";
+import { buildAdvisorTasks, buildMeetingPhases } from "../advisor-tasks.js";
 
 const meeting = (patch = {}) => ({
   status: "draft",
@@ -30,7 +30,7 @@ test("advisor moves finalized meetings through voting and awards", () => {
     meeting: meeting({ status: "final", votingForm: { formId: "form_1" } }),
     votingResults: { responseCount: 3 },
   });
-  assert.equal(results.now.title, "Confirm results");
+  assert.equal(results.now.title, "Review results");
   assert.equal(results.now.action.task, "voting-console");
 });
 
@@ -50,6 +50,41 @@ test("advisor stops after review completion", () => {
   assert.deepEqual(tasks.next, []);
 });
 
+test("meeting phases progress recruit -> prepare -> finalize -> run -> close", () => {
+  const vacantBlocks = [{ id: "b1", items: [{ kind: "role", role: "Timer", member: "" }] }];
+  const filledBlocks = [{ id: "b1", items: [
+    { kind: "role", role: "Timer", member: "Amy" },
+    { kind: "speech", member: "Bo", evaluator: "Cy", pathwaysMode: "custom", speechObjective: "Practice pacing." },
+  ] }];
+
+  const recruitPending = buildMeetingPhases({ meeting: meeting({ blocks: vacantBlocks }) });
+  assert.deepEqual(recruitPending.map((phase) => phase.done), [false, false, false, false, false]);
+
+  const preparePending = buildMeetingPhases({ meeting: meeting({ blocks: filledBlocks, wordOfDay: null }) });
+  assert.deepEqual(preparePending.map((phase) => phase.done), [true, false, false, false, false]);
+
+  const finalizePending = buildMeetingPhases({ meeting: meeting({ blocks: filledBlocks, wordOfDay: { word: "Momentum" } }) });
+  assert.deepEqual(finalizePending.map((phase) => phase.done), [true, true, false, false, false]);
+
+  const runPending = buildMeetingPhases({ meeting: meeting({ blocks: filledBlocks, wordOfDay: { word: "Momentum" }, status: "final" }) });
+  assert.deepEqual(runPending.map((phase) => phase.done), [true, true, true, false, false]);
+
+  const runDoneMeeting = meeting({ blocks: filledBlocks, wordOfDay: { word: "Momentum" }, status: "final" });
+  const runDone = buildMeetingPhases({
+    meeting: runDoneMeeting,
+    votingResults: { responseCount: 5 },
+    awards: { ready: true },
+  });
+  assert.deepEqual(runDone.map((phase) => phase.done), [true, true, true, true, false]);
+
+  const closeDone = buildMeetingPhases({
+    meeting: meeting({ blocks: filledBlocks, wordOfDay: { word: "Momentum" }, status: "final", reviewStatus: "completed" }),
+    votingResults: { responseCount: 5 },
+    awards: { ready: true },
+  });
+  assert.deepEqual(closeDone.map((phase) => phase.done), [true, true, true, true, true]);
+});
+
 test("advisor keeps overflow tasks for the UI More control", () => {
   const issues = Array.from({ length: 5 }, (_, index) => ({
     severity: "blocker",
@@ -59,4 +94,16 @@ test("advisor keeps overflow tasks for the UI More control", () => {
     focusKey: `item:${index}`,
   }));
   assert.equal(buildAdvisorTasks({ meeting: meeting(), issues }).risks.length, 5);
+});
+
+test("advisor closes the review loop with live awards and ignores legacy confirmation", () => {
+  const input = {
+    meeting: meeting({ status: "final", votingForm: { formId: "form_1" } }),
+    votingResults: { responseCount: 3 },
+  };
+  assert.equal(buildAdvisorTasks({ ...input, awards: { ready: true } }).now.title, "Complete review");
+  assert.equal(buildAdvisorTasks({ ...input, awards: { ready: false, confirmedAwards: {} } }).now.title, "Review results");
+  assert.equal(buildAdvisorTasks(input).now.action.task, "voting-console");
+  const pending = buildAdvisorTasks({ meeting: input.meeting });
+  assert.ok(pending.next.some((task) => task.title === "Review results"));
 });

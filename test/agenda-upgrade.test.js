@@ -38,3 +38,47 @@ test("draft agenda does not restore removed functional intros when reports remai
   assert.equal(sessions.includes("Timer Intro"), false);
   assert.equal(sessions.includes("Ah-Counter Intro"), false);
 });
+
+test("draft agenda does not restore a functional role deleted from both sessions", () => {
+  const meeting = upgradeAgenda({
+    id: "m3", status: "draft", blocks: [
+      { type: "opening", items: [
+        { id: "timer-intro", kind: "role", session: "Timer Intro", role: "Timer", duration: 2, member: "", status: "vacant" },
+        { id: "grammarian-intro", kind: "role", session: "Grammarian Intro", role: "Grammarian", duration: 2, member: "", status: "vacant" },
+      ] },
+      { type: "evaluation", items: [] },
+      { type: "closing", items: [
+        { id: "grammarian-report", kind: "role", session: "Grammarian Report", role: "Grammarian", duration: 3, member: "", status: "vacant" },
+        { id: "timer-report", kind: "role", session: "Timer Report", role: "Timer", duration: 3, member: "", status: "vacant" },
+      ] },
+    ],
+  });
+  const sessions = meeting.blocks.flatMap((block) => block.items.map((item) => item.session));
+  assert.equal(sessions.some((session) => session.includes("Ah-Counter")), false);
+});
+
+test("contest agenda without evaluation session keeps functional reports and evaluators absent", () => {
+  const meeting = upgradeAgenda({
+    id: "contest", status: "draft", meetingType: "contest", blocks: [
+      { type: "opening", items: [{ id: "tme", kind: "role", session: "Competition Rules", role: "TME", duration: 5 }] },
+      { type: "prepared_speeches", items: [{ id: "speech", kind: "speech", session: "", role: "Prepared Speaker 1", duration: 9, evaluatorStatus: "" }] },
+      { type: "closing", items: [{ id: "award", kind: "role", session: "Awards & Closing", role: "President", duration: 4 }] },
+    ],
+  });
+  assert.deepEqual(meeting.blocks.flatMap((block) => block.items).map((item) => item.id), ["tme", "speech", "award"]);
+  assert.equal(meeting.blocks[1].items[0].evaluatorStatus, "");
+});
+
+test("regular draft without evaluation session retains legacy functional roles and evaluator status", () => {
+  const meeting = upgradeAgenda({
+    id: "regular", status: "draft", blocks: [
+      { type: "opening", items: [] },
+      { type: "prepared_speeches", items: [{ id: "speech", kind: "speech", role: "Prepared Speaker", duration: 7 }] },
+      { type: "closing", items: [] },
+    ],
+  });
+  const sessions = meeting.blocks.flatMap((block) => block.items.map((item) => item.session));
+  assert.equal(sessions.includes("Timer Intro"), true);
+  assert.equal(sessions.includes("Timer Report"), true);
+  assert.equal(meeting.blocks[1].items[0].evaluatorStatus, "vacant");
+});

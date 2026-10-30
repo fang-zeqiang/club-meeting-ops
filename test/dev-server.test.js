@@ -43,6 +43,7 @@ test("local dev server exposes static and dynamic API routes", () => {
   assert.equal(matchApiRoute("/api/meetings/meeting-1/images/voting").params.id, "meeting-1");
   assert.equal(matchApiRoute("/api/meetings/meeting-1/voting").params.id, "meeting-1");
   assert.equal(matchApiRoute("/api/meetings/meeting-1/awards").params.id, "meeting-1");
+  assert.deepEqual(matchApiRoute("/api/meetings/meeting-1/review").params, { id: "meeting-1", action: "review" });
   assert.equal(matchApiRoute("/api/unknown"), null);
 });
 
@@ -64,8 +65,8 @@ test("local preview PDF route uses Chrome and forces the A4 preview view", async
   assert.match(appSource, /if \(pdfSnapshot\?\.meeting\)[\s\S]*loadPdfSnapshotWorkspace\(pdfSnapshot\)/);
 });
 
-test("deployment stays within the 15-function Serverless limit", async () => {
-  assert.ok((await apiFiles()).length <= 15);
+test("deployment stays within the 12-function Serverless limit", async () => {
+  assert.ok((await apiFiles()).length <= 12);
 });
 
 test("meeting PDF route is authenticated and renders the existing A4 view", async () => {
@@ -76,14 +77,27 @@ test("meeting PDF route is authenticated and renders the existing A4 view", asyn
   assert.match(meetingApiSource, /chromium\.executablePath\(\)/);
   assert.match(meetingApiSource, /page\.setRequestInterception\(true\)/);
   assert.match(meetingApiSource, /window\.__AGENDA_PDF_SNAPSHOT__/);
-  assert.match(meetingApiSource, /snapshotHtml\(html, request\.body\.snapshot\)/);
+  assert.match(meetingApiSource, /snapshotHtml\(html, snapshot\)/);
+  assert.match(meetingApiSource, /snapshot\?\.meeting\?\.id !== id \|\| !Array\.isArray\(snapshot\.members\)/);
+  assert.doesNotMatch(meetingApiSource, /request\.method === "POST" && request\.query\.action === "pdf"\) \{\s*const meeting = await getMeeting\(id\)/);
+  assert.match(meetingApiSource, /Promise\.all\(\[browserPromise, fetchAppHtml\(origin\), inlinePdfImages\(snapshot\)\]\)/);
+  assert.match(meetingApiSource, /getGlobalAssetImage\("officer-team-photo"\)/);
+  assert.match(meetingApiSource, /media\.body\.toString\("base64"\)/);
+  assert.match(meetingApiSource, /let pdfBrowser/);
+  assert.match(meetingApiSource, /if \(pdfBrowser\?\.connected\) \{[\s\S]*return pdfBrowser/);
+  assert.match(meetingApiSource, /await page\.close\(\)\.catch/);
+  assert.doesNotMatch(meetingApiSource, /await browser\.close\(\)/);
   assert.match(meetingApiSource, /\?pdfSnapshot=1/);
-  assert.match(meetingApiSource, /document\.querySelectorAll\("\.agenda-page"\)\.length === 2/);
+  assert.match(meetingApiSource, /document\.querySelectorAll\("\.agenda-page"\)\.length === 2[\s\S]*document\.fonts\.status === "loaded"[\s\S]*document\.images/);
   assert.match(meetingApiSource, /Content-Disposition/);
   assert.match(meetingApiSource, /Content-Length/);
 });
 
-test("meeting PDF accepts the configured public origin and rejects forged hosts", () => {
+test("agenda PNG rendering loads global images absent from its snapshot", () => {
+  assert.match(meetingApiSource, /async function inlinePdfImage\(image, loadStored\) \{[\s\S]*if \(image\?\.url\) return image;[\s\S]*const stored = await loadStored\(\);[\s\S]*return image \|\| stored\.image;/);
+});
+
+test("meeting PDF loads the public request host before protected Vercel deployment URLs", () => {
   const previous = process.env.VERCEL_URL;
   const previousPublic = process.env.PUBLIC_APP_ORIGIN;
   process.env.VERCEL_URL = "protected-deployment.vercel.app";
@@ -127,7 +141,7 @@ test("meeting API reuses POST for same-origin signup analysis", () => {
   assert.match(meetingApiSource, /analyzeSignup\(\{ signupText: body\.signupText, expectedRevision: body\.expectedRevision, meeting, members \}\)/);
   assert.match(meetingApiSource, /buildValidatedSignupMeeting\(\{ meeting, members, changes: body\.signupImport\.changes, expectedRevision: body\.expectedRevision \}\)/);
   assert.match(meetingApiSource, /request\.query\.action === "generate-signup"[\s\S]*generateSignupText\(meeting/);
-  assert.match(meetingApiSource, /vacancyEmoji must contain 1 to 8 characters/);
+  assert.match(meetingApiSource, /validateVacancyEmoji\(vacancyEmoji\)/);
 });
 
 test("voting API accepts live speaker saves over PUT", async () => {
