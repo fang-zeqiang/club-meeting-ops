@@ -7,6 +7,7 @@ import {
   changeBooking,
   deleteGoal,
   getBookingDashboard,
+  isBookingMeetingEditable,
   listBookingMembers,
   saveGoal,
   shanghaiDate,
@@ -22,14 +23,14 @@ const READ_ONLY = Object.freeze({ readOnlyHint: true, destructiveHint: false, id
 const WRITE = Object.freeze({ readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true });
 const APPLY = Object.freeze({ readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true });
 const MEETING_NUMBER = { type: "integer", minimum: 1, description: "Required Agenda meeting number; never infer a nearest meeting." };
-const MEMBER_ID = { type: "string", minLength: 1, maxLength: 120, description: "Exact member_id returned by get_role_booking_context." };
+const MEMBER_ID = { type: "string", minLength: 1, maxLength: 120, description: "Exact member_id returned by vpe_get_role_booking_context." };
 const ASSIGNMENT_ID = { type: "string", minLength: 1, maxLength: 160, description: "Exact assignment_id returned by current meeting context." };
 const IDEMPOTENCY_KEY = { type: "string", minLength: 8, maxLength: 200, description: "Client-generated stable key for one intended operation." };
 const SPEECH_DETAILS = {
   type: "object",
   properties: {
     session: { type: "string", maxLength: 200 },
-    pathways_mode: { type: "string", enum: ["pathways", "custom", "later"] },
+    pathways_mode: { type: "string", enum: ["pathways", "custom", "later"], description: "pathways: call vpe_search_pathways_projects first, then pass its returned project/path/form ids. custom: pass speech_objective only. later: leave identifiers empty." },
     pathways_path: { type: "string", maxLength: 120 },
     pathways_project_id: { type: "string", maxLength: 160 },
     pathways_form_id: { type: "string", maxLength: 160 },
@@ -40,15 +41,30 @@ const SPEECH_DETAILS = {
 
 export const BOOKING_TOOLS = Object.freeze([
   {
-    name: "get_role_booking_context",
+    name: "vpe_get_meeting_role_sop",
+    title: "查询会议角色 SOP 链接",
+    description: "Read Role Book SOP links from active public RoleCatalog roles. Pass a role name or alias for one exact SOP link; omit role to list every public role that has an SOP link. Returns links only and never reads document contents.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        role: { type: "string", minLength: 1, maxLength: 80, description: "Optional RoleCatalog name or alias." },
+      },
+      additionalProperties: false,
+    },
+    annotations: READ_ONLY,
+  },
+  {
+    name: "vpe_get_role_booking_context",
     title: "读取 Role Booking 上下文",
-    description: "Resolve one explicit active non-Guest member and read only that member's future bookings, goals, public roles, and optionally one exact meeting's assignment IDs. Never guess a member or meeting.",
+    description: "Resolve one explicit active non-Guest member and read that member's upcoming or historical bookings, goals, public roles, and optionally one exact meeting's assignment IDs. Historical and Final meetings are always read-only. Never guess a member or meeting.",
     inputSchema: {
       type: "object",
       properties: {
         member_query: { type: "string", minLength: 1, maxLength: 80 },
         member_id: MEMBER_ID,
         meeting_number: MEETING_NUMBER,
+        view: { type: "string", enum: ["upcoming", "history", "all"], default: "upcoming", description: "Defaults to upcoming for backward compatibility. Historical results are read-only." },
+        limit: { type: "integer", minimum: 1, maximum: 20, default: 10, description: "Maximum historical meetings returned for history or all views." },
         include_all_goals: { type: "boolean", default: false, description: "Use only when the user explicitly asks for all members' goal summary." },
       },
       anyOf: [{ required: ["member_query"] }, { required: ["member_id"] }],
@@ -57,9 +73,9 @@ export const BOOKING_TOOLS = Object.freeze([
     annotations: READ_ONLY,
   },
   {
-    name: "search_pathways_projects",
+    name: "vpe_search_pathways_projects",
     title: "搜索 Pathways 项目目录",
-    description: "Search the active Base-backed Pathways Catalog by query, Path, or Level. Returns stable project/form IDs; never searches the open web.",
+    description: "Search the active Base-backed Pathways Catalog by query, Path, or Level. Returns stable project/form IDs; never searches the open web. Call this before setting speech_details.pathways_mode=pathways; not required for custom or later.",
     inputSchema: {
       type: "object",
       properties: {
@@ -73,9 +89,9 @@ export const BOOKING_TOOLS = Object.freeze([
     annotations: READ_ONLY,
   },
   {
-    name: "book_role",
+    name: "vpe_book_role",
     title: "由官员代会员预约明确空缺角色",
-    description: "Immediately book one exact vacant assignment for one explicit member in one future draft meeting. Requires current revision and idempotency key. If the member already has another role, call again only after explicit confirmation with allow_multiple_roles=true.",
+    description: "Immediately book one exact vacant assignment for one explicit member in one current or future Draft meeting. Requires current revision and idempotency key. If the member already has another role, call again only after explicit confirmation with allow_multiple_roles=true.",
     inputSchema: {
       type: "object",
       properties: {
@@ -95,7 +111,7 @@ export const BOOKING_TOOLS = Object.freeze([
     annotations: WRITE,
   },
   {
-    name: "create_booking_goal",
+    name: "vpe_create_booking_goal",
     title: "由官员代会员新建角色目标",
     description: "Immediately create one public-role goal for one explicit member. Requires a stable idempotency key; an active goal for the same member and role is rejected.",
     inputSchema: {
@@ -113,7 +129,7 @@ export const BOOKING_TOOLS = Object.freeze([
     annotations: WRITE,
   },
   {
-    name: "propose_role_booking_change",
+    name: "vpe_propose_role_booking_change",
     title: "提议单个 Role Booking 修改",
     description: "Build one five-minute officer-proxy proposal for cancel, transfer, speech details, Presentation URL, goal edit, or goal delete. Returns complete before/after diff and writes no business data. Show the diff and wait for explicit confirmation.",
     inputSchema: {
@@ -149,7 +165,7 @@ export const BOOKING_TOOLS = Object.freeze([
     annotations: { ...READ_ONLY, openWorldHint: true },
   },
   {
-    name: "apply_role_booking_change",
+    name: "vpe_apply_role_booking_change",
     title: "确认后应用 Role Booking 修改",
     description: "Apply one unexpired signed Booking proposal only after the user explicitly confirms its complete diff. Revalidates principal, revision or goal hash, assignment, member, catalog, and URL; audits first and reads back after writing.",
     inputSchema: {
@@ -244,10 +260,13 @@ function writeEnabled() {
   }
 }
 
-function publicAssignment(assignment, memberId = "") {
+function publicAssignment(assignment, memberId = "", label = assignment.role) {
   return {
     assignmentId: assignment.id,
     role: assignment.role,
+    label,
+    session: assignment.session || "",
+    speakerName: assignment.speakerName || "",
     status: assignment.status,
     bookable: Boolean(assignment.bookable),
     memberId: assignment.memberId || "",
@@ -270,6 +289,48 @@ function publicGoalSummary(goal) {
     completed: goal.completed,
     booked: goal.booked,
     status: goal.status,
+  };
+}
+
+function enrichHistoryReservation(reservation, projectNames) {
+  const details = reservation.speechDetails;
+  if (!details?.pathwaysProjectId) return reservation;
+  return {
+    ...reservation,
+    speechDetails: {
+      ...details,
+      pathwaysProjectName: projectNames.get(details.pathwaysProjectId) || details.pathwaysProjectId,
+    },
+  };
+}
+
+function bookingHistorySummary(reservations) {
+  const roleCounts = {};
+  const meetings = new Set();
+  const pathways = new Map();
+  let preparedSpeechCount = 0;
+  reservations.forEach((reservation) => {
+    meetings.add(reservation.meetingNumber);
+    roleCounts[reservation.role] = (roleCounts[reservation.role] || 0) + 1;
+    if (reservation.role !== "Prepared Speaker") return;
+    preparedSpeechCount += 1;
+    const details = reservation.speechDetails || {};
+    const project = details.pathwaysProjectName || details.legacyProject || details.pathwaysProjectId || "";
+    if (!project) return;
+    const entry = {
+      path: details.pathwaysPath || "",
+      level: details.pathwaysLevel || "",
+      project,
+      projectId: details.pathwaysProjectId || "",
+    };
+    const key = JSON.stringify(entry);
+    pathways.set(key, { ...entry, count: (pathways.get(key)?.count || 0) + 1 });
+  });
+  return {
+    meetingCount: meetings.size,
+    roleCounts,
+    preparedSpeechCount,
+    pathwaysProjects: [...pathways.values()],
   };
 }
 
@@ -409,7 +470,7 @@ export function createBookingService(overrides = {}) {
   async function meetingState(memberId, number) {
     const { member, dashboard } = await memberState(memberId);
     const meeting = dashboard.meetings.find((candidate) => candidate.meetingNumber === number);
-    if (!meeting) throw new ApiError(404, "MEETING_NOT_FOUND", `Future Draft/Final meeting #${number} was not found.`);
+    if (!meeting) throw new ApiError(404, "MEETING_NOT_FOUND", `Current or future Draft/Final meeting #${number} was not found.`);
     return { member, dashboard, meeting };
   }
 
@@ -417,16 +478,22 @@ export function createBookingService(overrides = {}) {
     const member = await resolveMember(args.member_id, args.member_query);
     if (args.meeting_number != null) requiredInteger(args.meeting_number, "INVALID_MEETING_NUMBER", "meeting_number", 1);
     if (args.include_all_goals != null && typeof args.include_all_goals !== "boolean") throw new ApiError(400, "INVALID_ARGUMENTS", "include_all_goals must be boolean.");
+    const view = args.view == null ? "upcoming" : String(args.view);
+    if (!["upcoming", "history", "all"].includes(view)) throw new ApiError(400, "INVALID_VIEW", "view must be upcoming, history, or all.");
+    const limit = args.limit == null ? 10 : requiredInteger(args.limit, "INVALID_LIMIT", "limit", 1);
+    if (limit > 20) throw new ApiError(400, "INVALID_LIMIT", "limit must be an integer from 1 to 20.");
     const dashboard = await deps.getBookingDashboard(member.id, new Date(deps.now()));
     const data = {
       member: { memberId: member.id, displayName: member.displayName },
-      reservations: dashboard.reservations.map(({ meetingId: _meetingId, ...reservation }) => reservation),
       goals: dashboard.goals.map(publicGoal),
       roleCatalog: dashboard.roleCatalog,
     };
     if (args.meeting_number != null) {
-      const meeting = dashboard.meetings.find((candidate) => candidate.meetingNumber === args.meeting_number);
-      if (!meeting) throw new ApiError(404, "MEETING_NOT_FOUND", `Future Draft/Final meeting #${args.meeting_number} was not found.`);
+      const meeting = [...dashboard.meetings, ...(dashboard.historyMeetings || [])]
+        .find((candidate) => candidate.meetingNumber === args.meeting_number);
+      if (!meeting) throw new ApiError(404, "MEETING_NOT_FOUND", `Meeting #${args.meeting_number} was not found.`);
+      const today = shanghaiDate(new Date(deps.now()));
+      const editable = isBookingMeetingEditable(meeting, today);
       data.meeting = {
         meetingNumber: meeting.meetingNumber,
         date: meeting.date,
@@ -434,10 +501,38 @@ export function createBookingService(overrides = {}) {
         theme: meeting.theme,
         status: meeting.status,
         revision: meeting.revision,
-        assignments: meeting.assignments.map((assignment) => publicAssignment(assignment, member.id)),
+        editable,
+        lockReason: editable ? "" : meeting.date < today ? "historical_meeting" : "meeting_final",
+        assignments: meeting.assignments.map((assignment, index, assignments) => {
+          const total = assignments.filter(({ role }) => role === assignment.role).length;
+          const ordinal = assignments.slice(0, index + 1).filter(({ role }) => role === assignment.role).length;
+          return publicAssignment(assignment, member.id, total > 1 ? `${assignment.role} ${ordinal}` : assignment.role);
+        }),
       };
     } else {
-      data.meetings = dashboard.meetings.map(({ id: _id, assignments: _assignments, ...meeting }) => meeting);
+      if (["upcoming", "all"].includes(view)) {
+        data.reservations = dashboard.reservations.map(({ meetingId: _meetingId, ...reservation }) => reservation);
+        data.meetings = dashboard.meetings.map(({ id: _id, assignments: _assignments, ...meeting }) => meeting);
+      }
+      if (["history", "all"].includes(view)) {
+        const history = dashboard.historyMeetings || [];
+        const selected = history.slice(0, limit);
+        const selectedNumbers = new Set(selected.map(({ meetingNumber }) => meetingNumber));
+        const pathwaysCatalog = await deps.getPathwaysCatalog();
+        const projectNames = new Map(pathwaysCatalog.projects.map(({ projectId, name }) => [projectId, name]));
+        const historyReservations = (dashboard.historyReservations || [])
+          .map((reservation) => enrichHistoryReservation(reservation, projectNames));
+        data.historyMeetings = selected.map(({ id: _id, ...meeting }) => ({
+          ...meeting,
+          editable: false,
+          lockReason: "historical_meeting",
+        }));
+        data.historyReservations = historyReservations
+          .filter(({ meetingNumber }) => selectedNumbers.has(meetingNumber))
+          .map(({ meetingId: _meetingId, ...reservation }) => reservation);
+        data.historyHasMore = history.length > selected.length;
+        data.historySummary = bookingHistorySummary(historyReservations);
+      }
     }
     if (args.include_all_goals === true) {
       data.everyoneGoals = dashboard.everyoneGoals.map(({ displayName, goals }) => ({
@@ -446,6 +541,21 @@ export function createBookingService(overrides = {}) {
       }));
     }
     return data;
+  }
+
+  async function getMeetingRoleSop(args = {}) {
+    const catalog = await deps.getRoleCatalog();
+    const publicRole = ({ name, description, sopUrl }) => ({ role: name, description, sopUrl });
+    if (args.role == null) {
+      const roles = catalog.bookingRoles.filter(({ sopUrl }) => sopUrl).map(publicRole);
+      return { roles, count: roles.length };
+    }
+    const requested = requiredText(args.role, "INVALID_ROLE", "role", 80);
+    const canonical = catalog.canonicalize(requested);
+    const role = catalog.bookingRoles.find(({ name }) => name === canonical);
+    if (!role) throw new ApiError(404, "ROLE_NOT_FOUND", "Active public Role Book role was not found.");
+    if (!role.sopUrl) throw new ApiError(404, "ROLE_SOP_NOT_CONFIGURED", `${role.name} has no SOP link configured.`);
+    return publicRole(role);
   }
 
   async function searchPathways(args) {
@@ -502,7 +612,7 @@ export function createBookingService(overrides = {}) {
     const existing = await deps.findAgendaAudit(id);
     if (existing) return auditResult(existing, requestHash);
     const { member, meeting } = await meetingState(args.member_id, number);
-    if (meeting.status !== "draft" || meeting.date <= shanghaiDate(new Date(deps.now()))) throw new ApiError(409, "MEETING_LOCKED", "Only a future Draft meeting can be booked.");
+    if (!isBookingMeetingEditable(meeting, shanghaiDate(new Date(deps.now())))) throw new ApiError(409, "MEETING_LOCKED", "Only a current or future Draft meeting can be booked.");
     if (Number(meeting.revision) !== revision) throw new ApiError(409, "REVISION_CONFLICT", "Meeting revision changed.", { currentRevision: meeting.revision });
     const assignment = meeting.assignments.find((candidate) => candidate.id === assignmentId);
     if (!assignment) throw new ApiError(404, "ASSIGNMENT_NOT_FOUND", "Assignment was not found in current meeting context.");
@@ -514,7 +624,7 @@ export function createBookingService(overrides = {}) {
         timeHint: meetingTimeHint(meeting),
       });
     }
-    const speech = assignment.role === "Prepared Speaker" ? speechInput(args.speech_details) : undefined;
+    const speech = assignment.role === "Prepared Speaker" ? await prepareSpeech(args.speech_details) : undefined;
     if (args.speech_details && assignment.role !== "Prepared Speaker") throw new ApiError(400, "INVALID_SPEECH_DETAILS", "speech_details is allowed only for Prepared Speaker.");
     if (args.external_presentation_url && !["Prepared Speaker", "TTM"].includes(assignment.role)) {
       throw new ApiError(400, "INVALID_EXTERNAL_PRESENTATION_URL", "Only Prepared Speaker or TTM can maintain Presentation URL.");
@@ -623,7 +733,7 @@ export function createBookingService(overrides = {}) {
       const assignmentId = requiredText(args.assignment_id, "INVALID_ASSIGNMENT_ID", "assignment_id", 160);
       const state = await meetingState(member.id, number);
       const { meeting } = state;
-      if (meeting.status !== "draft" || meeting.date <= shanghaiDate(new Date(deps.now()))) throw new ApiError(409, "MEETING_LOCKED", "Only a future Draft meeting can be changed.");
+      if (!isBookingMeetingEditable(meeting, shanghaiDate(new Date(deps.now())))) throw new ApiError(409, "MEETING_LOCKED", "Only a current or future Draft meeting can be changed.");
       if (Number(meeting.revision) !== revision) throw new ApiError(409, "REVISION_CONFLICT", "Meeting revision changed.", { currentRevision: meeting.revision });
       const assignment = meeting.assignments.find((candidate) => candidate.id === assignmentId);
       if (!assignment) throw new ApiError(404, "ASSIGNMENT_NOT_FOUND", "Assignment was not found in current meeting context.");
@@ -741,7 +851,7 @@ export function createBookingService(overrides = {}) {
       await resolveMember(payload.member.id);
       if (payload.targetMember) await resolveMember(payload.targetMember.id);
       meeting = await deps.getMeeting(payload.meetingId);
-      if (meeting.status !== "draft" || meeting.date <= shanghaiDate(new Date(deps.now()))) throw new ApiError(409, "MEETING_LOCKED", "Only a future Draft meeting can be changed.");
+      if (!isBookingMeetingEditable(meeting, shanghaiDate(new Date(deps.now())))) throw new ApiError(409, "MEETING_LOCKED", "Only a current or future Draft meeting can be changed.");
       if (Number(meeting.revision) !== payload.expectedRevision) throw new ApiError(409, "REVISION_CONFLICT", "Meeting revision changed.", { currentRevision: meeting.revision });
       const catalog = await deps.getRoleCatalog();
       current = bookingAssignments(meeting, catalog).find((candidate) => candidate.id === payload.assignmentId);
@@ -831,38 +941,48 @@ export function createBookingService(overrides = {}) {
     }
   }
 
-  return { getContext, searchPathways, bookRole, createGoal, propose, apply };
+  return { getMeetingRoleSop, getContext, searchPathways, bookRole, createGoal, propose, apply };
 }
 
 const bookingService = createBookingService();
 
 export async function callBookingTool(name, rawArguments, principal, baseUrl) {
   if (!TOOL_NAMES.has(name)) return null;
-  if (name === "get_role_booking_context") {
-    const args = objectArgs(rawArguments, ["member_query", "member_id", "meeting_number", "include_all_goals"]);
+  if (name === "vpe_get_meeting_role_sop") {
+    const args = objectArgs(rawArguments, ["role"]);
+    const data = await bookingService.getMeetingRoleSop(args);
+    return { data, message: args.role == null ? `找到 ${data.count} 个会议角色 SOP 链接。` : `${data.role} SOP：${data.sopUrl}` };
+  }
+  if (name === "vpe_get_role_booking_context") {
+    const args = objectArgs(rawArguments, ["member_query", "member_id", "meeting_number", "view", "limit", "include_all_goals"]);
     if (!args.member_query && !args.member_id) throw new ApiError(400, "INVALID_ARGUMENTS", "Required: member_query or member_id.");
     const data = await bookingService.getContext(args);
-    return { data, message: data.meeting ? `#${data.meeting.meetingNumber} Role Booking context · revision ${data.meeting.revision}。` : `找到 ${data.meetings.length} 场未来会议。写入前明确选择 meeting_number。` };
+    const message = data.meeting
+      ? `#${data.meeting.meetingNumber} Role Booking context · revision ${data.meeting.revision}${data.meeting.editable ? "" : " · 只读"}。`
+      : data.historyMeetings && !data.meetings
+        ? `找到 ${data.historyMeetings.length} 场历史会议，只读。`
+        : `找到 ${data.meetings?.length || 0} 场未来会议${data.historyMeetings ? `、${data.historyMeetings.length} 场历史会议` : ""}。写入前明确选择 meeting_number。`;
+    return { data, message };
   }
-  if (name === "search_pathways_projects") {
+  if (name === "vpe_search_pathways_projects") {
     const args = objectArgs(rawArguments, ["query", "path", "level", "limit"]);
     const data = await bookingService.searchPathways(args);
     return { data, message: `找到 ${data.count} 个 active Pathways projects。` };
   }
-  if (name === "book_role") {
+  if (name === "vpe_book_role") {
     const args = objectArgs(rawArguments, ["meeting_number", "expected_revision", "assignment_id", "member_id", "idempotency_key", "allow_multiple_roles", "speech_details", "external_presentation_url", "allow_external_url_risk"], ["meeting_number", "expected_revision", "assignment_id", "member_id", "idempotency_key"]);
     const data = await bookingService.bookRole(args, principal, baseUrl);
     return { data, message: `#${data.meetingNumber} 已预约并回读验证。revision ${data.beforeRevision} → ${data.afterRevision}。` };
   }
-  if (name === "create_booking_goal") {
+  if (name === "vpe_create_booking_goal") {
     const args = objectArgs(rawArguments, ["member_id", "role", "target_count", "due_date", "idempotency_key"], ["member_id", "role", "target_count", "due_date", "idempotency_key"]);
     const data = await bookingService.createGoal(args, principal);
     return { data, message: `${data.member.displayName} 的 ${data.goal.role} 目标已新建并回读验证。` };
   }
-  if (name === "propose_role_booking_change") {
+  if (name === "vpe_propose_role_booking_change") {
     const args = objectArgs(rawArguments, ["action", "meeting_number", "expected_revision", "assignment_id", "member_id", "target_member_id", "goal_id", "expected_goal_hash", "goal", "speech_details", "external_presentation_url"], ["action", "member_id"]);
     const data = await bookingService.propose(args, principal);
-    return { data, message: `Role Booking ${data.action} proposal 已生成。请展示完整 diff；明确确认后才调用 apply_role_booking_change。` };
+    return { data, message: `Role Booking ${data.action} proposal 已生成。请展示完整 diff；明确确认后才调用 vpe_apply_role_booking_change。` };
   }
   const args = objectArgs(rawArguments, ["proposal_id"], ["proposal_id"]);
   const data = await bookingService.apply(args.proposal_id, principal, baseUrl);

@@ -53,6 +53,7 @@ test("updating meeting metadata does not rewrite unchanged blocks or items", { c
       meeting_type: ["regular_meeting"],
       status: "draft",
       venue: "Room 14",
+      presentation_theme: "sky",
       voting_code: "DEMO-101",
       enable_transition_time: false,
       photographer_member_id: "",
@@ -61,7 +62,13 @@ test("updating meeting metadata does not rewrite unchanged blocks or items", { c
       meeting_manager_name: "",
       wod_word: "Momentum",
       wod_pronunciation: "/m/",
+      wod_part_of_speech: "noun",
+      wod_definition: "Forward movement.",
+      wod_usage: "For steady progress",
       wod_example: "Keep moving.",
+      table_topics_speakers_json: JSON.stringify(["Ada Lovelace"]),
+      table_topics_entries_json: JSON.stringify([{ id: "speaker-1", name: "Ada Lovelace", order: 1, durationSeconds: 83, placeholder: false, aliases: ["Ada Lovelace"] }]),
+      current_table_topics_entry_id: "speaker-1",
       revision: 49,
     },
   };
@@ -102,6 +109,7 @@ test("updating meeting metadata does not rewrite unchanged blocks or items", { c
   ]);
   const childPatches = [];
   let meetingPatches = 0;
+  let meetingPatchFields;
   const originalFetch = global.fetch;
   global.fetch = async (url, options = {}) => {
     const path = new URL(url).pathname;
@@ -116,6 +124,7 @@ test("updating meeting metadata does not rewrite unchanged blocks or items", { c
     }
     if (options.method === "PATCH" && tableId === ids.meetingsTable) {
       meetingPatches += 1;
+      meetingPatchFields = JSON.parse(options.body);
       return jsonResponse({ code: 0, data: { record_id: meetingRecord.record_id } });
     }
     throw new Error(`Unexpected request: ${options.method || "GET"} ${path}`);
@@ -139,7 +148,9 @@ test("updating meeting metadata does not rewrite unchanged blocks or items", { c
       meetingManagerMemberId: "",
       meetingManager: "",
       votingQr: { present: false },
-      wordOfDay: { word: "Momentum", pronunciation: "/m/", example: "Keep moving." },
+      wordOfDay: { word: "Momentum", pronunciation: "/m/", partOfSpeech: "noun", definition: "Forward movement.", usage: "For steady progress", example: "Keep moving." },
+      tableTopicsEntries: [{ id: "speaker-1", name: "Ada Lovelace", order: 1, durationSeconds: 83 }],
+      currentTableTopicsEntryId: "speaker-1",
       revision: 49,
       blocks: [{
         id: "block_1",
@@ -167,12 +178,29 @@ test("updating meeting metadata does not rewrite unchanged blocks or items", { c
     assert.equal(updated.revision, 50);
     assert.deepEqual(childPatches, []);
     assert.equal(meetingPatches, 1);
+    assert.equal(meetingPatchFields.wod_part_of_speech, "noun");
+    assert.equal(meetingPatchFields.wod_definition, "Forward movement.");
+    assert.equal(meetingPatchFields.wod_usage, "For steady progress");
+    assert.equal(meetingPatchFields.table_topics_entries_json, JSON.stringify([{ id: "speaker-1", name: "Ada Lovelace", order: 1, durationSeconds: 83, placeholder: false, aliases: ["Ada Lovelace"] }]));
+    assert.equal(meetingPatchFields.current_table_topics_entry_id, "speaker-1");
 
     const unchangedPayload = structuredClone(payload);
     unchangedPayload.theme = "Original theme";
     const unchanged = await updateMeeting("meeting_101", unchangedPayload, 49);
     assert.equal(unchanged.revision, 49);
     assert.equal(meetingPatches, 1);
+
+    const contestPayload = structuredClone(payload);
+    contestPayload.theme = "Original theme";
+    contestPayload.contestResults = { first: { memberId: "", name: "Ada Lovelace" } };
+    await updateMeeting("meeting_101", contestPayload, 49);
+    assert.equal(meetingPatches, 2);
+    assert.equal(meetingPatchFields.contest_results_json, JSON.stringify({ first: { memberId: "", name: "Ada Lovelace" } }));
+    meetingRecord.fields.contest_results_json = meetingPatchFields.contest_results_json;
+    const { getMeeting } = await import(`../server/meetings-repository.js?meeting-read=${Date.now()}`);
+    assert.deepEqual((await getMeeting("meeting_101")).contestResults, { first: { memberId: "", name: "Ada Lovelace" } });
+    delete meetingRecord.fields.contest_results_json;
+    meetingPatches = 1;
 
     const changedItemPayload = structuredClone(payload);
     changedItemPayload.theme = "Original theme";
@@ -198,6 +226,145 @@ test("updating meeting metadata does not rewrite unchanged blocks or items", { c
         && error.details?.itemId === "item_1",
     );
     assert.equal(childPatches.length, 2);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("a transient not-found on the meeting record itself retries once instead of failing the save", { concurrency: false }, async () => {
+  Object.assign(process.env, {
+    FEISHU_APP_ID: "test-app-id",
+    FEISHU_APP_SECRET: "test-app-secret",
+    BITABLE_APP_TOKEN: "test-base",
+    BITABLE_MEETINGS_TABLE_ID: ids.meetingsTable,
+    BITABLE_BLOCKS_TABLE_ID: ids.blocksTable,
+    BITABLE_ITEMS_TABLE_ID: ids.itemsTable,
+    BITABLE_MEMBERS_TABLE_ID: ids.membersTable,
+    BITABLE_TEMPLATES_TABLE_ID: ids.templatesTable,
+    BITABLE_ASSETS_TABLE_ID: ids.assetsTable,
+  });
+
+  const meetingRecord = {
+    record_id: "rec_meeting",
+    fields: {
+      meeting_id: "meeting_108",
+      meeting_number: 108,
+      starts_at: Date.parse("2026-09-08T18:40:00+08:00"),
+      theme: "Original theme",
+      meeting_type: ["regular_meeting"],
+      status: "draft",
+      venue: "Room 14",
+      voting_code: "DEMO-108",
+      enable_transition_time: false,
+      photographer_member_id: "",
+      photographer_name: "",
+      meeting_manager_member_id: "",
+      meeting_manager_name: "",
+      wod_word: "",
+      wod_pronunciation: "",
+      wod_part_of_speech: "",
+      wod_definition: "",
+      wod_example: "",
+      revision: 85,
+    },
+  };
+  const blockRecord = {
+    record_id: "rec_block",
+    fields: {
+      block_id: "block_1",
+      meeting: [{ id: meetingRecord.record_id }],
+      order_index: 0,
+      block_type: ["custom"],
+      title: "Opening",
+      notes: "",
+    },
+  };
+  const itemRecord = {
+    record_id: "rec_item",
+    fields: {
+      item_id: "item_1",
+      block: [{ id: blockRecord.record_id }],
+      order_index: 0,
+      item_kind: ["role"],
+      session_title: "Welcome",
+      role_title: "Host",
+      duration_min: 3,
+      member: [],
+      member_name_snapshot: "",
+      evaluator: [],
+      evaluator_name_snapshot: "",
+      speech_objective: "",
+      status: "confirmed",
+    },
+  };
+  const recordsByTable = new Map([
+    [ids.meetingsTable, [meetingRecord]],
+    [ids.blocksTable, [blockRecord]],
+    [ids.itemsTable, [itemRecord]],
+    [ids.membersTable, []],
+  ]);
+  let meetingPatchAttempts = 0;
+  const originalFetch = global.fetch;
+  global.fetch = async (url, options = {}) => {
+    const path = new URL(url).pathname;
+    if (path.endsWith("/tenant_access_token/internal")) {
+      return jsonResponse({ code: 0, tenant_access_token: "test-token", expire: 7200 });
+    }
+    const tableId = [...recordsByTable.keys()].find((candidate) => path.includes(`/tables/${candidate}/records`));
+    if ((options.method || "GET") === "GET" && tableId) return jsonResponse(listResponse(recordsByTable.get(tableId)));
+    if (options.method === "PATCH" && tableId === ids.meetingsTable) {
+      meetingPatchAttempts += 1;
+      if (meetingPatchAttempts === 1) return jsonResponse({ code: 800030201, msg: "not_found: not_found" }, 404);
+      return jsonResponse({ code: 0, data: { record_id: meetingRecord.record_id } });
+    }
+    throw new Error(`Unexpected request: ${options.method || "GET"} ${path}`);
+  };
+
+  try {
+    const { updateMeeting } = await import(`../server/meetings-repository.js?meeting-update=${Date.now()}`);
+    const payload = {
+      id: "meeting_108",
+      meetingNumber: 108,
+      date: "2026-09-08",
+      startTime: "18:40",
+      theme: "Updated theme",
+      meetingType: "regular_meeting",
+      status: "draft",
+      venue: "Room 14",
+      votingCode: "DEMO-108",
+      enableTransitionTime: false,
+      photographerMemberId: "",
+      photographer: "",
+      meetingManagerMemberId: "",
+      meetingManager: "",
+      votingQr: { present: false },
+      wordOfDay: { word: "", pronunciation: "", partOfSpeech: "", definition: "", example: "" },
+      revision: 85,
+      blocks: [{
+        id: "block_1",
+        type: "custom",
+        title: "Opening",
+        notes: "",
+        items: [{
+          id: "item_1",
+          kind: "role",
+          session: "Welcome",
+          role: "Host",
+          duration: 3,
+          memberId: "",
+          member: "",
+          evaluatorId: "",
+          evaluator: "",
+          speechObjective: "",
+          status: "confirmed",
+        }],
+      }],
+    };
+    const updated = await updateMeeting("meeting_108", payload, 85);
+
+    assert.equal(updated.theme, "Updated theme");
+    assert.equal(updated.revision, 86);
+    assert.equal(meetingPatchAttempts, 2);
   } finally {
     global.fetch = originalFetch;
   }

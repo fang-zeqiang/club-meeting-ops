@@ -1,0 +1,46 @@
+.presentation-remote {
+  box-sizing: border-box;
+  min-height: 100dvh;
+  padding: 24px 16px max(24px, env(safe-area-inset-bottom));
+  display: grid;
+  place-items: center;
+  background: var(--cool-canvas, #eaf2f8);
+  color: var(--meeting-navy, #12233f);
+  font-family: "IBM Plex Sans", "Microsoft YaHei", sans-serif;
+}
+
+.presentation-remote *, .presentation-remote *::before, .presentation-remote *::after { box-sizing: border-box; }
+
+.presentation-remote-card {
+  width: min(100%, 480px);
+  padding: 24px;
+  border: 1px solid var(--cool-line, #cbd7e4);
+  border-radius: 14px;
+  background: var(--cool-paper, #fff);
+}
+
+.presentation-remote-label {
+  margin: 0 0 8px;
+  color: var(--muted-slate, #65738a);
+  font: 700 .625rem/1.2 "IBM Plex Mono", monospace;
+  letter-spacing: .08em;
+}
+
+.presentation-remote h1 { margin: 0; font: 720 clamp(1.875rem, 9vw, 2.375rem)/1.08 "Bricolage Grotesque", "Microsoft YaHei", sans-serif; letter-spacing: -.04em; }
+.presentation-remote-status { margin: 24px 0 4px; font-weight: 700; }
+.presentation-remote-status[data-status="subscribed"] { color: var(--success-green, #2c8b69); }
+.presentation-remote-status[data-status="disconnected"], .presentation-remote-status[data-status="ended"] { color: var(--risk-red, #c94652); }
+.presentation-remote-position { margin: 0; color: var(--muted-slate, #65738a); }
+
+.presentation-remote-group { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--cool-line, #cbd7e4); }
+.presentation-remote-group h2 { margin: 0; font: 700 1.0625rem/1.15 "Bricolage Grotesque", "Microsoft YaHei", sans-serif; }
+.presentation-remote-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+.presentation-remote-jump { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: end; margin-top: 12px; color: var(--muted-slate, #65738a); font-size: .875rem; }
+.presentation-remote-jump label { display: grid; gap: 4px; }
+.presentation-remote-jump input { width: 100%; min-height: 44px; border: 1px solid var(--cool-line, #cbd7e4); border-radius: 10px; padding: 7px 9px; color: var(--meeting-navy, #12233f); font: inherit; }
+.presentation-remote-button { min-height: 44px; border: 1px solid var(--cool-line, #cbd7e4); border-radius: 7px; padding: 8px 13px; background: var(--cool-paper, #fff); color: var(--meeting-navy, #12233f); font: 700 .9375rem/1.2 "IBM Plex Sans", "Microsoft YaHei", sans-serif; cursor: pointer; }
+.presentation-remote-button.primary { border-color: var(--action-cobalt, #3157d5); background: var(--action-cobalt, #3157d5); color: var(--cool-paper, #fff); }
+.presentation-remote-button:focus-visible { outline: 3px solid var(--action-cobalt, #3157d5); outline-offset: 2px; }
+.presentation-remote-button:disabled { cursor: not-allowed; opacity: .5; }
+
+@media (max-width: 390px) { .presentation-remote { padding-inline: 12px; } .presentation-remote-card { padding: 16px; } .presentation-remote-actions { grid-template-columns: 1fr; } }

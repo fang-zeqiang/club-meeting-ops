@@ -4,6 +4,14 @@ export function getPreparedSpeeches(meeting) {
   );
 }
 
+// 背面页 SPEECH OBJECTIVE 卡片按 PS 篇数分档收紧行高/字号，避免超过 4 篇时溢出 A4。
+export function getSpeechObjectiveDensityClass(objectiveCount) {
+  if (objectiveCount >= 5) return "speech-objective-density-overflow objectives-overflow-risk";
+  if (objectiveCount >= 4) return "speech-objective-density-tight";
+  if (objectiveCount >= 3) return "speech-objective-density-compact";
+  return "";
+}
+
 export function appendVersion(path, version) {
   return `${path}${path.includes("?") ? "&" : "?"}v=${encodeURIComponent(version)}`;
 }

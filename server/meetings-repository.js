@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { normalizePresentationTheme } from "../presentation-themes.js";
 import {
   ApiError,
   batchCreateRecords,
@@ -12,14 +13,16 @@ import {
   listRecords,
   updateRecord,
 } from "./bitable.js";
-import { assignMeetingPresident, OFFICER_ROLES, normalizeOfficerAssignments } from "../officer-roles.js";
+import { OFFICER_ROLES, normalizeOfficerAssignments } from "../officer-roles.js";
 import {
   asText,
   linkedIds,
   normalizeBlockType,
+  normalizeContestResults,
   normalizeItemKind,
   normalizeItemStatus,
   normalizeMeeting,
+  normalizeOffAgendaRoles,
   splitStartsAt,
   startsAtTimestamp,
 } from "./meeting-schema.js";
@@ -43,19 +46,27 @@ const meetingFields = (meeting, revision = meeting.revision) => ({
   starts_at: startsAtTimestamp(meeting.date, meeting.startTime),
   theme: meeting.theme,
   meeting_type: meeting.meetingType,
+  presentation_theme: meeting.presentationTheme,
   status: meeting.status,
   venue: meeting.venue,
   voting_code: meeting.votingCode,
   voting_qr_source: meeting.qrSource,
   table_topics_speakers_json: JSON.stringify(meeting.tableTopicsSpeakers || []),
+  table_topics_entries_json: JSON.stringify(meeting.tableTopicsEntries || []),
+  current_table_topics_entry_id: meeting.currentTableTopicsEntryId || "",
   voting_form_json: meeting.votingForm ? JSON.stringify(meeting.votingForm) : "",
   enable_transition_time: meeting.enableTransitionTime,
   photographer_member_id: meeting.photographerMemberId,
   photographer_name: meeting.photographer,
   meeting_manager_member_id: meeting.meetingManagerMemberId,
   meeting_manager_name: meeting.meetingManager,
+  off_agenda_roles_json: meeting.offAgendaRoles?.length ? JSON.stringify(meeting.offAgendaRoles) : "",
+  contest_results_json: Object.keys(meeting.contestResults || {}).length ? JSON.stringify(meeting.contestResults) : "",
   wod_word: meeting.wordOfDay.word,
   wod_pronunciation: meeting.wordOfDay.pronunciation,
+  wod_part_of_speech: meeting.wordOfDay.partOfSpeech,
+  wod_definition: meeting.wordOfDay.definition,
+  wod_usage: meeting.wordOfDay.usage,
   wod_example: meeting.wordOfDay.example,
   revision,
 });
@@ -120,6 +131,7 @@ function itemFields(item, blockRecordId, meetingId, blockId, membersById, member
     evaluator_name_snapshot: item.evaluator,
     evaluator_status: item.evaluatorStatus,
     role_assignment_id: item.roleAssignmentId,
+    presentation_phase: item.presentationPhase,
     linked_speech_id: item.linkedSpeechId,
     pathways_mode: item.pathwaysMode,
     pathways_path: item.pathwaysPath,
@@ -230,12 +242,15 @@ function assembleMeeting(meetingRecord, store) {
     meetingNumber: Number(meetingRecord.fields.meeting_number || 0),
     ...startsAt,
     theme: asText(meetingRecord.fields.theme),
-    meetingType: meetingRecord.fields.meeting_type || "regular_meeting",
+    meetingType: asText(meetingRecord.fields.meeting_type) || "regular_meeting",
+    presentationTheme: normalizePresentationTheme(asText(meetingRecord.fields.presentation_theme)),
     status: asText(meetingRecord.fields.status) || "draft",
     venue: asText(meetingRecord.fields.venue),
     votingCode: asText(meetingRecord.fields.voting_code),
     qrSource: asText(meetingRecord.fields.voting_qr_source) === "manual" ? "manual" : "system",
+    tableTopicsEntries: parseJson(meetingRecord.fields.table_topics_entries_json, []),
     tableTopicsSpeakers: parseJson(meetingRecord.fields.table_topics_speakers_json, []),
+    currentTableTopicsEntryId: asText(meetingRecord.fields.current_table_topics_entry_id),
     votingForm,
     review: parseJson(meetingRecord.fields[REVIEW_FIELDS.review], null),
     reviewStatus: asText(meetingRecord.fields[REVIEW_FIELDS.status]) || "pending",
@@ -247,11 +262,19 @@ function assembleMeeting(meetingRecord, store) {
     photographer: memberNameForField(meetingRecord, "photographer_member_id", "photographer_name", membersById),
     meetingManagerMemberId: asText(meetingRecord.fields.meeting_manager_member_id),
     meetingManager: memberNameForField(meetingRecord, "meeting_manager_member_id", "meeting_manager_name", membersById),
+    offAgendaRoles: normalizeOffAgendaRoles(parseJson(meetingRecord.fields.off_agenda_roles_json, [])).map((entry) => ({
+      ...entry,
+      member: membersById.get(entry.memberId)?.displayName || entry.member,
+    })),
+    contestResults: normalizeContestResults(parseJson(meetingRecord.fields.contest_results_json, {})),
     votingQr: imageDescriptor(meetingRecord.fields.voting_qr_image),
     systemVotingQr: imageDescriptor(meetingRecord.fields.system_voting_qr_image),
     wordOfDay: {
       word: asText(meetingRecord.fields.wod_word),
       pronunciation: asText(meetingRecord.fields.wod_pronunciation),
+      partOfSpeech: asText(meetingRecord.fields.wod_part_of_speech),
+      definition: asText(meetingRecord.fields.wod_definition),
+      usage: asText(meetingRecord.fields.wod_usage),
       example: asText(meetingRecord.fields.wod_example),
     },
     revision: Number(meetingRecord.fields.revision || 0),
@@ -273,12 +296,17 @@ function assembleMeeting(meetingRecord, store) {
             session: asText(item.fields.session_title),
             role: asText(item.fields.role_title),
             duration: Number(item.fields.duration_min || 0),
+            timerGreenSec: item.fields.timer_green_sec,
+            timerYellowSec: item.fields.timer_yellow_sec,
+            timerRedSec: item.fields.timer_red_sec,
+            timerBellSec: item.fields.timer_bell_sec,
             memberId: member?.id || "",
             member: asText(item.fields.member_name_snapshot) || member?.displayName || "",
             evaluatorId: evaluator?.id || "",
             evaluator: asText(item.fields.evaluator_name_snapshot) || evaluator?.displayName || "",
             evaluatorStatus: kind === "speech" ? normalizeItemStatus(item.fields.evaluator_status) : "",
             roleAssignmentId: asText(item.fields.role_assignment_id),
+            presentationPhase: asText(item.fields.presentation_phase),
             linkedSpeechId: asText(item.fields.linked_speech_id),
             pathwaysMode: asText(item.fields.pathways_mode),
             pathwaysPath: asText(item.fields.pathways_path),
@@ -344,7 +372,7 @@ export async function getMembers() {
     .map(({ recordId, ...member }) => member);
 }
 
-export async function createGuestMember(input) {
+export async function createGuestMemberWithStatus(input) {
   const displayName = String(input?.displayName || "").trim();
   const email = String(input?.email || "").trim();
   if (displayName.length < 2 || displayName.length > 80) {
@@ -355,7 +383,7 @@ export async function createGuestMember(input) {
   const existing = records.map(memberFromRecord).find((member) => member.displayName.toLocaleLowerCase() === displayName.toLocaleLowerCase());
   if (existing) {
     const { recordId, ...member } = existing;
-    return member;
+    return { member, created: false };
   }
   const record = await createRecord(membersTableId, {
     member_id: `guest_${crypto.randomUUID()}`,
@@ -371,7 +399,22 @@ export async function createGuestMember(input) {
     pathways_enrolled: false,
   });
   const { recordId, ...member } = memberFromRecord(record);
-  return member;
+  return { member, created: true };
+}
+
+export async function createGuestMember(input) {
+  return (await createGuestMemberWithStatus(input)).member;
+}
+
+export async function deleteGuestMember(memberId) {
+  const { membersTableId } = getBitableConfig();
+  const record = (await listRecords(membersTableId)).find((candidate) => asText(candidate.fields.member_id) === memberId);
+  if (!record) return false;
+  if (asText(record.fields.member_type).toLocaleLowerCase() !== "guest_placeholder") {
+    throw new ApiError(409, "MEMBER_NOT_GUEST", "Only a Guest placeholder can be deleted.");
+  }
+  await batchDeleteRecords(membersTableId, [record.record_id]);
+  return true;
 }
 
 export async function updateOfficerAssignments(input) {
@@ -439,7 +482,6 @@ async function resolvePathwaysItems(input, current = null) {
 export async function createMeeting(input) {
   const meeting = normalizeMeeting(await resolvePathwaysItems(input));
   const store = await loadStore();
-  assignMeetingPresident(meeting, store.members);
   if (store.meetings.some((record) => asText(record.fields.meeting_id) === meeting.id)) {
     throw new ApiError(409, "MEETING_ID_EXISTS", "A meeting with this ID already exists.");
   }
@@ -488,8 +530,6 @@ async function updateMeetingInternal(meetingId, input, expectedRevision, allowRe
   }
   const current = assembleMeeting(meetingRecord, store);
   const meeting = normalizeMeeting({ ...(await resolvePathwaysItems(input, current)), id: meetingId });
-  assignMeetingPresident(meeting, store.members);
-
   const existingBlocks = store.blocks.filter((block) => linkedIds(block.fields.meeting).includes(meetingRecord.record_id));
   const existingBlocksById = new Map(existingBlocks.map((block) => [asText(block.fields.block_id), block]));
   const existingBlockUpdates = meeting.blocks.filter((block) => {
@@ -595,6 +635,12 @@ async function updateMeetingInternal(meetingId, input, expectedRevision, allowRe
     if (!refreshedMeeting) throw new ApiError(404, "MEETING_NOT_FOUND", "Meeting not found.");
     const refreshedRevision = Number(refreshedMeeting.fields.revision || 0);
     if (refreshedRevision !== currentRevision || !allowRecordRefresh) throw revisionConflict(refreshedRevision, error);
+
+    if (error.details?.entity === "meeting") {
+      // meeting_id 是稳定标识,record_id 没变说明只是一次瞬时的飞书 not-found,不是记录被删/重建,直接整段重试一次。
+      if (refreshedMeeting.record_id !== meetingRecord.record_id) throw revisionConflict(refreshedRevision, error);
+      return updateMeetingInternal(meetingId, input, expectedRevision, false);
+    }
 
     const refreshedBlocks = refreshedStore.blocks.filter((block) => linkedIds(block.fields.meeting).includes(refreshedMeeting.record_id));
     const refreshedBlockRecordIds = new Set(refreshedBlocks.map((block) => block.record_id));

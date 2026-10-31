@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { aggregateAwardResults, AWARD_TYPES, createConfirmedSnapshot, englishList, recognitionAwardResults } from "../server/award-core.js";
+import { aggregateAwardResults, AWARD_TYPES, contestAwardResults, createConfirmedSnapshot, englishList, recognitionAwardResults } from "../server/award-core.js";
 
 test("englishList formats joint winners", () => {
   assert.equal(englishList(["A", "B"]), "A and B");
@@ -32,6 +32,11 @@ test("recognition awards prepend sharing master and speech completion", () => {
     votingForm: { recognitionAwardConfig: { sharingMasterRoleIds: ["ttm"], sharingMasterNames: ["Override A", "Override B"] } },
     blocks: [
       { type: "table_topics", items: [{ kind: "role", role: "TTM", member: "Role A", status: "confirmed" }] },
+      { type: "opening", items: [
+        { kind: "role", role: "Sharing Master", member: "Sharing A", status: "confirmed" },
+        { kind: "role", role: "Sharing Master", member: "Sharing B", status: "confirmed" },
+        { kind: "role", role: "Sharing Master", member: "Vacant", status: "vacant" },
+      ] },
       { type: "prepared_speeches", items: [
         { kind: "speech", session: "Speech A", member: "Speaker A", status: "confirmed" },
         { kind: "speech", session: "Speech B", member: "", status: "vacant" },
@@ -39,8 +44,15 @@ test("recognition awards prepend sharing master and speech completion", () => {
     ],
   });
   assert.deepEqual(results.map(({ type }) => type), ["sharing_master", "speech_completion"]);
-  assert.equal(results[0].winners[0].name, "Override A & Override B");
+  assert.equal(results[0].winners[0].name, "Sharing A & Sharing B");
   assert.equal(results[1].winners[0].context, "Speech A");
+});
+
+test("sharing master award is omitted when Agenda has no confirmed assignment", () => {
+  assert.deepEqual(recognitionAwardResults({
+    votingForm: { recognitionAwardConfig: { sharingMasterNames: ["Legacy override"] } },
+    blocks: [{ type: "opening", items: [{ kind: "role", role: "Sharing Master", member: "", status: "vacant" }] }],
+  }), []);
 });
 
 test("snapshot freezes meeting date and president", () => {
@@ -67,4 +79,26 @@ test("snapshot deduplicates a winner while retaining every winning context", () 
     president: { name: "Jordan" }, operator: { name: "Alex" },
   });
   assert.deepEqual(snapshot.awards[0].winners, [{ memberId: "", name: "Alice", context: "Speech A / Speech B" }]);
+});
+
+test("contest awards reveal participation then third to first place", () => {
+  const meeting = {
+    meetingType: "contest",
+    contestResults: { first: { memberId: "m1", name: "Ada" }, second: { memberId: "m2", name: "Bob" }, third: { memberId: "m3", name: "Cy" } },
+    blocks: [{ type: "prepared_speeches", items: [
+      { kind: "speech", session: "Prepared Speech 1", member: "Ada", status: "confirmed" },
+      { kind: "speech", session: "Prepared Speech 2", member: "Bob", status: "confirmed" },
+    ] }],
+  };
+  const results = contestAwardResults(meeting);
+  assert.deepEqual(results.map(({ type }) => type), ["speech_completion", "speech_completion", "contest_third", "contest_second", "contest_first"]);
+  assert.equal(results[0].title, "Contest Participation");
+  assert.deepEqual(results.at(-1).winners, [{ memberId: "m1", name: "Ada" }]);
+  assert.equal(results.at(-1).title, "First Place");
+});
+
+test("contest ceremony waits until a place is recorded", () => {
+  assert.deepEqual(contestAwardResults({ meetingType: "contest", blocks: [{ type: "prepared_speeches", items: [
+    { kind: "speech", session: "Prepared Speech 1", member: "Ada", status: "confirmed" },
+  ] }] }), []);
 });

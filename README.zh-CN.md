@@ -31,9 +31,12 @@ Preview 只使用虚构数据，不登录、不写 Base。
 - 根据个人目标预约未来会议角色。
 - 编辑会议、Agenda 区块、角色、演讲和学习路径。
 - 输出两页 A4 Agenda 与现场 Presentation。
-- 准备投票、确认奖项、展示证书。
+- 在 Presentation 里控场：计时信号、节日主题、手机遥控、数字白板、即兴抽题和每日一词卡片。
+- 准备投票、确认奖项，并在 Presentation 中现场颁发证书。
+- 切换到演讲比赛模式，支持议程外角色与比赛奖项。
+- 在 Role Book 查看角色预约历史和往期会议。
 - 检查会前风险并完成会后质量复盘。
-- 通过 MCP 读取会议；Draft Agenda 修改和角色预约受显式授权、确认、审计与版本检查保护。
+- 通过 MCP 读取会议；Draft Agenda 修改、角色预约、即兴话题和每日一词受显式授权、确认、审计与版本检查保护。
 
 ## 架构
 
@@ -141,6 +144,11 @@ npm run test:integration
    设置为不带路径的公开 HTTPS Origin。
 5. 使用全新 Base 和全新密钥。
 6. 部署后检查 `/api/health`。
+
+MCP 写工具默认关闭：只有 `MCP_AGENDA_WRITE_ENABLED` 或 `MCP_BOOKING_WRITE_ENABLED`
+严格等于 `true`，且已建好 `MCP Agenda Changes` 审计表时才会启用。Presentation
+手机遥控依赖 Supabase 项目（`VITE_SUPABASE_URL`、`VITE_SUPABASE_PUBLISHABLE_KEY`），
+未配置时遥控入口隐藏，其余功能正常。
 
 Preview 部署使用隔离测试资源或无持久化模式。Fork PR 不注入生产密钥。
 

@@ -8,8 +8,9 @@ import {
 } from "./bitable.js";
 import { asText } from "./meeting-schema.js";
 import { getMeeting } from "./meetings-repository.js";
+import { isTableTopicsWritableToday, validateTableTopicsEntries } from "../table-topics-entries.js";
 import { currentAuthorization, ensureResourceEditors, votingBaseEditUrl } from "./resource-access.js";
-import { ROLE_AWARD_POOLS, roleAwardConfig, roleAwardIssues, roleIdentity } from "../role-awards.js";
+import { ROLE_AWARD_POOLS, roleAwardConfig, roleAwardIssues, roleEntries, roleIdentity } from "../role-awards.js";
 import { AWARD_DEFINITIONS } from "../award-order.js";
 
 export const AWARDS = Object.freeze(Object.fromEntries(AWARD_DEFINITIONS.map(({ key, field }) => [key, field])));
@@ -38,30 +39,52 @@ function unique(values) {
   return [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))];
 }
 
-function tableTopicsCandidates(values) {
-  return unique(values || []).map((name) => ({ id: `table-topics:${name.toLocaleLowerCase()}`, memberId: "", name, context: "", label: name }));
+function tableTopicsCandidates(entries, legacyNames = []) {
+  const source = Array.isArray(entries) && entries.length
+    ? entries.filter((entry) => !entry.placeholder).map((entry) => ({ id: entry.id, name: entry.name }))
+    : unique(legacyNames).map((name) => ({ id: `table-topics:${name.toLocaleLowerCase()}`, name }));
+  return source.map(({ id, name }) => ({ id, memberId: "", name, context: "", label: name }));
+}
+
+export function retainTableTopicsOptionIds(candidates = [], previous = [], existingOptions = []) {
+  const priorLabelsById = new Map(previous.map(({ id, label }) => [id, label]));
+  const optionsByName = new Map(existingOptions.map((option) => [option.name, option]));
+  return candidates.map((candidate) => {
+    const option = optionsByName.get(candidate.label) || optionsByName.get(priorLabelsById.get(candidate.id));
+    return option?.id ? { id: option.id, name: candidate.label } : { name: candidate.label };
+  });
 }
 
 export function candidateChangeSummary(next = {}, previous = {}) {
   const added = [];
   const removed = [];
+  const renamed = [];
   for (const { key, field: award } of AWARD_DEFINITIONS) {
     const before = previous[key] || [];
     const after = next[key] || [];
+    const renamedIds = key === "tableTopicsSpeaker" ? new Set(after
+      .filter((item) => before.some((stored) => stored.id === item.id && stored.label !== item.label))
+      .map((item) => item.id)) : new Set();
+    renamed.push(...after
+      .filter((item) => renamedIds.has(item.id))
+      .map((item) => ({ award: key, id: item.id, from: before.find((stored) => stored.id === item.id).label, to: item.label })));
     added.push(...after
+      .filter((item) => !renamedIds.has(item.id))
       .filter((item) => !before.some((stored) => stored.id === item.id && stored.label === item.label))
       .map((item) => ({ award, label: item.label })));
     removed.push(...before
+      .filter((item) => !renamedIds.has(item.id))
       .filter((item) => !after.some((candidate) => candidate.id === item.id && candidate.label === item.label))
       .map((item) => ({ award, label: item.label })));
   }
-  return { addedCount: added.length, removedCount: removed.length, added, removed };
+  return { addedCount: added.length, removedCount: removed.length, renamedCount: renamed.length, added, removed, renamed };
 }
 
 export function candidateChangePlan(next, previous, responseCount) {
   const changes = candidateChangeSummary(next, previous);
-  const changed = Boolean(changes.addedCount || changes.removedCount);
-  return { changed, responseResetRequired: changed && responseCount > 0, responseCount, changes };
+  const changed = Boolean(changes.addedCount || changes.removedCount || changes.renamedCount);
+  const responseResetRequired = Boolean((changes.addedCount || changes.removedCount) && responseCount > 0);
+  return { changed, responseResetRequired, responseCount, changes };
 }
 
 function assertResponseResetConfirmed(plan, confirmed) {
@@ -76,7 +99,7 @@ export function candidatesFromMeeting(meeting) {
   const items = meeting.blocks.flatMap((block) => block.items || []);
   const speeches = meeting.blocks.flatMap((block) => block.type === "prepared_speeches"
     ? block.items.filter((item) => item.kind === "speech") : []);
-  const configuredRoleTaker = roleAwardConfig(meeting.votingForm).roleTakerRoleIds;
+  const configuredRoleTaker = roleAwardConfig(meeting.votingForm, roleEntries(meeting)).roleTakerRoleIds;
   const roleCandidates = (roles, key) => {
     const seen = new Set();
     return items.map((item) => ({ item, identity: roleIdentity(item.role, item.roleId) }))
@@ -107,7 +130,7 @@ export function candidatesFromMeeting(meeting) {
     roleTaker: roleCandidates(new Set([...ROLE_AWARD_POOLS.roleTaker, ...configuredRoleTaker]), "roleTaker"),
     facilitator: roleCandidates(new Set(ROLE_AWARD_POOLS.facilitator), "facilitator"),
     functionalRole: roleCandidates(new Set(ROLE_AWARD_POOLS.functionalRole), "functionalRole"),
-    tableTopicsSpeaker: tableTopicsCandidates(meeting.tableTopicsSpeakers),
+    tableTopicsSpeaker: tableTopicsCandidates(meeting.tableTopicsEntries, meeting.tableTopicsSpeakers),
     preparedSpeaker: speeches.filter((item) => item.status === "confirmed" && item.member).map((item) => ({
       id: item.id, memberId: item.memberId || "", name: item.member, context: item.session,
       label: `${item.member} — ${item.session}`,
@@ -255,7 +278,7 @@ export async function prepareVotingForm(meetingId) {
     const candidates = candidatesFromMeeting(meeting);
     const candidateChanges = candidateChangeSummary(candidates, metadata.syncedCandidates || {});
     if (metadata.tableId && metadata.formId && metadata.schemaVersion === 2 && meeting.systemVotingQr?.present
-      && !candidateChanges.addedCount && !candidateChanges.removedCount) {
+      && !candidateChanges.addedCount && !candidateChanges.removedCount && !candidateChanges.renamedCount) {
       try {
         const form = await getBitableForm(appToken, metadata.tableId, metadata.formId);
         const shareUrl = formShareUrl(form) || metadata.shareUrl;
@@ -340,7 +363,7 @@ export async function prepareVotingForm(meetingId) {
     metadata.authorization = authorization;
     await persistMetadata(meetingId, metadata, { ...(needsQrUpload ? { system_voting_qr_image: [{ file_token: fileToken }] } : {}), voting_qr_source: meeting.qrSource || "system" });
     const changes = candidateChangeSummary(candidates, metadata.syncedCandidates || {});
-    const synced = fieldsReady || changes.addedCount || changes.removedCount
+    const synced = fieldsReady || changes.addedCount || changes.removedCount || changes.renamedCount
       ? await syncVotingForm(meetingId, { fieldsReady, knownFields: createdFields || existingFields, knownMeeting: { ...meeting, votingForm: metadata }, knownResponses: poolBaseline ? [] : null, poolBaseline })
       : { votingForm: metadata };
     return {
@@ -403,16 +426,19 @@ export async function syncVotingForm(meetingId, { confirmResponseReset = false, 
     const awardUpdates = awardEntries.map(({ key, name, options, fieldIndex }) => async () => {
       const field = fields.find((item) => item.field_id === fieldIds[key]);
       if (!field) throw new ApiError(409, "VOTING_FIELD_MISSING", `${name} field is missing.`);
+      const fieldOptions = key === "tableTopicsSpeaker"
+        ? retainTableTopicsOptionIds(candidates[key], previous[key], field.property?.options || [])
+        : options;
       if (poolOptimized) {
         const before = previous[key] || [];
         const changed = before.length !== candidates[key].length || before.some((item, index) => item.id !== candidates[key][index]?.id || item.label !== candidates[key][index]?.label);
-        if (changed && (options.length || before.length)) await updateBitableField(appToken, metadata.tableId, field.field_id, { field_name: name, type: 3, property: { ...(field.property || {}), options } });
+        if (changed && (options.length || before.length)) await updateBitableField(appToken, metadata.tableId, field.field_id, { field_name: name, type: 3, property: { ...(field.property || {}), options: fieldOptions } });
         if (poolBaseline && !options.length) await updateBitableFormField(appToken, metadata.tableId, metadata.formId, field.field_id, { visible: false });
         else if (!poolBaseline && Boolean(before.length) !== Boolean(options.length)) await updateBitableFormField(appToken, metadata.tableId, metadata.formId, field.field_id,
           options.length ? { title: name, required: true, visible: true, index: fieldIndex } : { visible: false });
         return;
       }
-      if (!fieldsReady) await updateBitableField(appToken, metadata.tableId, field.field_id, { field_name: name, type: 3, property: { ...(field.property || {}), options } });
+      if (!fieldsReady) await updateBitableField(appToken, metadata.tableId, field.field_id, { field_name: name, type: 3, property: { ...(field.property || {}), options: fieldOptions } });
       await updateBitableFormField(appToken, metadata.tableId, metadata.formId, field.field_id,
         options.length ? { title: name, required: true, visible: true, index: fieldIndex } : { visible: false });
     });
@@ -437,8 +463,6 @@ export async function syncVotingForm(meetingId, { confirmResponseReset = false, 
       fieldIds,
       lastSyncedAt: syncedAt,
       syncedCandidates: candidates,
-      awardsNeedReconfirmation: Boolean(metadata.awardsNeedReconfirmation
-        || (plan.changed && asText(record.fields.confirmed_awards_json))),
       ...(plan.changed ? {
         lastCandidateChange: {
           at: syncedAt,
@@ -453,7 +477,6 @@ export async function syncVotingForm(meetingId, { confirmResponseReset = false, 
       clearedResponses: plan.responseResetRequired ? responses.length : 0,
       candidates,
       votingForm: updated,
-      awardsNeedReconfirmation: updated.awardsNeedReconfirmation,
     };
   };
   return locks.has(meetingId) ? run() : serialized(meetingId, run);
@@ -511,7 +534,6 @@ export async function saveTableTopicsSpeakers(meetingId, speakers, { confirmResp
       ...metadata,
       lastSyncedAt: syncedAt,
       syncedCandidates: candidates,
-      awardsNeedReconfirmation: Boolean(metadata.awardsNeedReconfirmation || (plan.changed && asText(target.record.fields.confirmed_awards_json))),
       ...(plan.changed ? { lastCandidateChange: { at: syncedAt, clearedResponseCount: plan.responseResetRequired ? records.length : 0, ...plan.changes } } : {}),
     };
     await Promise.all([
@@ -532,10 +554,37 @@ export async function saveTableTopicsSpeakers(meetingId, speakers, { confirmResp
       clearedResponses: plan.responseResetRequired ? records.length : 0,
       candidates,
       votingForm: updated,
-      awardsNeedReconfirmation: updated.awardsNeedReconfirmation,
       tableTopicsSpeakers: next,
       responseCount: records.length,
     };
+  });
+}
+
+export async function saveTableTopicsEntries(meetingId, entries, { currentTableTopicsEntryId = "", confirmResponseReset = false } = {}) {
+  return serialized(meetingId, async () => {
+    const meeting = await getMeeting(meetingId);
+    if (!isTableTopicsWritableToday(meeting.date)) throw new ApiError(403, "TABLE_TOPICS_READ_ONLY", "本场会议已结束，名单不可修改。");
+    let nextEntries;
+    try {
+      nextEntries = validateTableTopicsEntries((Array.isArray(entries) ? entries : []).map((entry) => ({
+        ...entry,
+        id: String(entry?.id || `tte_${crypto.randomUUID()}`),
+      })), currentTableTopicsEntryId);
+    } catch (error) {
+      throw new ApiError(400, error.code || "INVALID_TABLE_TOPICS_ENTRIES", error.message);
+    }
+    const nextMeeting = { ...meeting, tableTopicsEntries: nextEntries, tableTopicsSpeakers: nextEntries.filter((entry) => !entry.placeholder).map((entry) => entry.name) };
+    const responseCount = meeting.votingForm?.tableId ? (await votingRecords(votingToken(), meeting.votingForm.tableId)).length : 0;
+    const plan = candidateChangePlan(candidatesFromMeeting(nextMeeting), candidatesFromMeeting(meeting), responseCount);
+    assertResponseResetConfirmed(plan, confirmResponseReset);
+    const { config, record } = await mainMeetingRecord(meetingId);
+    await updateRecord(config.meetingsTableId, record.record_id, {
+      table_topics_entries_json: JSON.stringify(nextEntries),
+      table_topics_speakers_json: JSON.stringify(nextMeeting.tableTopicsSpeakers),
+      current_table_topics_entry_id: currentTableTopicsEntryId,
+    });
+    if (plan.changed && meeting.votingForm?.tableId) await syncVotingForm(meetingId, { confirmResponseReset });
+    return { tableTopicsEntries: nextEntries, tableTopicsSpeakers: nextMeeting.tableTopicsSpeakers, currentTableTopicsEntryId };
   });
 }
 
@@ -572,9 +621,13 @@ export function tallyVotingResults(current, synced, records) {
       if (value) counts.set(value, (counts.get(value) || 0) + 1);
     });
     const currentCandidates = current[key] || [];
-    const candidates = currentCandidates.map((candidate) => ({ ...candidate, votes: counts.get(candidate.label) || 0, historical: false }));
+    const candidates = currentCandidates.map((candidate) => {
+      const labels = new Set([candidate.label, ...(synced[key] || []).filter((item) => item.id === candidate.id).map((item) => item.label)]);
+      const votes = [...labels].reduce((total, label) => total + (counts.get(label) || 0), 0);
+      labels.forEach((label) => counts.delete(label));
+      return { ...candidate, votes, historical: false };
+    });
     counts.forEach((votes, label) => {
-      if (currentCandidates.some((candidate) => candidate.label === label)) return;
       const candidate = (synced[key] || []).find((item) => item.label === label) || { id: label, name: label, label, memberId: "", context: "" };
       candidates.push({ ...candidate, votes, historical: true });
     });

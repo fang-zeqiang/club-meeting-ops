@@ -55,6 +55,34 @@
       "owner": "Club Meeting Ops contributors",
       "license": "MIT",
       "review": "Generated from fictional meeting data; no credentials, private links, real people, QR payloads, or third-party marks."
+    },
+    {
+      "path": "assets/presentation/halloween/cobweb.svg",
+      "sha256": "0053799257b05becb5cd029ee3da67fcb836a1195cedd70351777acb423c7749",
+      "owner": "Club Meeting Ops contributors",
+      "license": "MIT",
+      "review": "Original hand-written vector decoration for seasonal presentation themes; no embedded images, metadata, links, people, or third-party marks."
+    },
+    {
+      "path": "assets/presentation/halloween/pumpkins.svg",
+      "sha256": "10b9dfe99a6770b2c7661aefb2e0ce9cafd9aba359fad17b1a4f9c65dc7c0add",
+      "owner": "Club Meeting Ops contributors",
+      "license": "MIT",
+      "review": "Original hand-written vector decoration for seasonal presentation themes; no embedded images, metadata, links, people, or third-party marks."
+    },
+    {
+      "path": "assets/presentation/midautumn/clouds.svg",
+      "sha256": "713d76785a918e7ebb38ce33f2dd9831ad5cc14d312b2589da81d4962e19f29b",
+      "owner": "Club Meeting Ops contributors",
+      "license": "MIT",
+      "review": "Original hand-written vector decoration for seasonal presentation themes; no embedded images, metadata, links, people, or third-party marks."
+    },
+    {
+      "path": "assets/presentation/midautumn/moon.svg",
+      "sha256": "3def08a864c080e50b1b9a7331f5bda0e30ab2aefc5306d1dd96bbd65e306239",
+      "owner": "Club Meeting Ops contributors",
+      "license": "MIT",
+      "review": "Original hand-written vector decoration for seasonal presentation themes; no embedded images, metadata, links, people, or third-party marks."
     }
   ]
 }

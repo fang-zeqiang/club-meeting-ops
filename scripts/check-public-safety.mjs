@@ -29,7 +29,8 @@ const tracked = (() => {
 const forbiddenPaths = [
   /^\.env(?:\.|$)/,
   /(^|\/)(?:private|artifacts|output|tmp|\.vercel)(?:\/|$)/,
-  /(?:backup|dump|export|credential|secret)/i,
+  /(?:backup|dump|credential|secret)/i,
+  /(?:^|\/)[^/]*export[^/]*\.(?:json|csv|tsv|xlsx?|sql|zip)$/i,
   /(^|\/)\.DS_Store$/,
   /(?:~|\.swp|\.swo)$/,
 ];

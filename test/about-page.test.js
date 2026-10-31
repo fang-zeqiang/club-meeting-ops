@@ -8,7 +8,7 @@ test("/about presents public product structure with live routes", async () => {
     readFile(new URL("../vercel.json", import.meta.url), "utf8"),
     readFile(new URL("../about-page.js", import.meta.url), "utf8"),
     readFile(new URL("../about.css", import.meta.url), "utf8"),
-    readFile(new URL("../app.js", import.meta.url), "utf8"),
+    readFile(new URL("../src/app/lifecycle-sync.js", import.meta.url), "utf8"),
   ]);
 
   assert.match(entry, /aboutRoute/);
@@ -21,5 +21,5 @@ test("/about presents public product structure with live routes", async () => {
   assert.doesNotMatch(page, /href="\/demo"/);
   assert.match(page, /document\.documentElement\.lang = text\.lang/);
   assert.match(styles, /@media \(max-width: 640px\)/);
-  assert.match(workspace, /href="\/about">Product overview/);
+  assert.match(workspace, /href="\/about">Club Meeting Ops/);
 });
