@@ -237,7 +237,7 @@ test("set meeting WOD with only a word fills the card from AI without reading th
   global.fetch = async (url, options = {}) => {
     const text = String(url);
     if (text.includes("/auth/v3/tenant_access_token/internal")) return new Response(JSON.stringify({ code: 0, tenant_access_token: "tenant", expire: 7200 }), { status: 200 });
-    if (text.includes("api.deepseek.com")) {
+    if (new URL(text).hostname === "api.deepseek.com") {
       deepseekCalls += 1;
       return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(generated) } }] }), { status: 200 });
     }
