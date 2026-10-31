@@ -2,6 +2,8 @@ const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 const emojiPart = /^[\p{Extended_Pictographic}\p{Emoji_Modifier}\p{Regional_Indicator}\p{Variation_Selector}\u200d\u20e3\u{e0020}-\u{e007f}#*0-9]+$/u;
 const emojiSignal = /[\p{Extended_Pictographic}\p{Regional_Indicator}\u20e3]/u;
 
+export const SIGNUP_DEFAULT_VACANCY_MARKER = "🌸🌸🌸";
+
 export function splitEmojiGraphemes(value) {
   return [...segmenter.segment(String(value || ""))].map(({ segment }) => segment);
 }

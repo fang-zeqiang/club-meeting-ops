@@ -1,0 +1,255 @@
+/* 投屏页主题:每个主题只覆盖 meeting-presentation.css 里的 --pres-* token。
+   新增主题 = 在 presentation-themes.js 注册 id,再在这里加一个 token block;
+   需要节日装饰时,额外给 .stage-decor 挂伪元素(见文件末尾中秋主题)。 */
+
+/* 晴空 / 素白共用的浅色文字与面板 token(原先的 :is(.theme-sky, .theme-white) 覆盖链)。 */
+.meeting-presentation.theme-sky,
+.meeting-presentation.theme-white,
+.theme-swatch.theme-sky,
+.theme-swatch.theme-white {
+  --pres-color-scheme: light;
+
+  --pres-heading: #07324a;
+  --pres-heading-shadow: 0 10px 28px rgb(255 255 255 / .62);
+  --pres-heading-shadow-flat: 0 10px 28px rgb(255 255 255 / .62);
+  --pres-accent: #d88a00;
+  --pres-thanks-heading: #d88a00;
+  --pres-cover-strong: #0d5f86;
+  --pres-cover-time: #0d5f86;
+  --pres-intro-body: #0d5f86;
+  --pres-line: #0d5f86;
+  --pres-speech-speaker: #0d5f86;
+  --pres-thanks-body: #0d5f86;
+  --pres-thanks-quote: #0d5f86;
+  --pres-muted: #34708d;
+  --pres-objective: #b97300;
+  --pres-meta: #5f8392;
+  --pres-meta-soft: #7b9aa6;
+
+  --pres-tbd-fg: #a66b00;
+  --pres-tbd-bg: rgb(255 192 0 / .18);
+
+  --pres-panel-shadow: 0 14px 34px rgb(31 104 142 / .12);
+  --pres-badge-bg: rgb(255 255 255 / .68);
+  --pres-badge-border: rgb(7 50 74 / .14);
+  --pres-badge-chip-fg: #07324a;
+  --pres-badge-chip-bg: rgb(255 255 255 / .84);
+  --pres-belief-bg: rgb(255 255 255 / .68);
+  --pres-belief-fg: #07324a;
+  --pres-board-section-bg: rgb(255 255 255 / .68);
+  --pres-board-section-border: rgb(7 50 74 / .14);
+  --pres-board-heading: #0a6f9e;
+  --pres-board-divider: rgb(7 50 74 / .12);
+  --pres-board-fg: #173d56;
+  --pres-board-accent: #0c719d;
+
+  --pres-qr-fg: #0c719d;
+  --pres-qr-bg: rgb(255 255 255 / .7);
+  --pres-qr-shadow: 0 16px 36px rgb(31 104 142 / .16);
+  --pres-qr-title: #07324a;
+
+  --pres-timer-border: rgb(7 50 74 / .12);
+  --pres-timer-bg: rgb(255 255 255 / .74);
+  --pres-timer-bg-active: rgb(255 255 255 / .9);
+  --pres-timer-label: #0d5f86;
+  --pres-timer-btn-fg: #0d5f86;
+  --pres-timer-btn-border: rgb(7 50 74 / .14);
+  --pres-timer-btn-bg: rgb(7 50 74 / .06);
+}
+
+.meeting-presentation.theme-sky,
+.theme-swatch.theme-sky {
+  --pres-fg: #07324a;
+  --pres-page-bg:
+    linear-gradient(90deg, rgb(0 157 217 / .16) 0 2.8%, transparent 2.8% 100%),
+    linear-gradient(145deg, #c8f0ff 0%, #f8fdff 54%, #fff0b8 100%);
+  --pres-stage-bg:
+    radial-gradient(circle at 76% 18%, rgb(255 255 255 / .86), transparent 26%),
+    linear-gradient(135deg, #e7fbff 0%, #aee7ff 50%, #fff6d8 100%);
+  --pres-stage-shadow: 0 2.4vh 8vh rgb(22 86 122 / .22);
+  --pres-stage-border: rgb(255 255 255 / .44);
+  --pres-stage-accent:
+    linear-gradient(90deg, transparent, rgb(255 192 0 / .88)),
+    linear-gradient(180deg, transparent, rgb(255 113 92 / .68));
+}
+
+.meeting-presentation.theme-white,
+.theme-swatch.theme-white {
+  --pres-fg: #0d3151;
+  --pres-page-bg:
+    linear-gradient(90deg, rgb(255 192 0 / .16) 0 2.8%, transparent 2.8% 100%),
+    linear-gradient(145deg, #fff8df 0%, #ffffff 54%, #dff5ff 100%);
+  --pres-stage-bg:
+    radial-gradient(circle at 74% 18%, rgb(0 157 217 / .12), transparent 25%),
+    linear-gradient(135deg, #ffffff 0%, #fff7df 51%, #e8f8ff 100%);
+  --pres-stage-shadow: 0 2.4vh 8vh rgb(47 70 86 / .18);
+  --pres-stage-border: rgb(8 63 98 / .08);
+  --pres-stage-accent:
+    linear-gradient(90deg, transparent, rgb(255 192 0 / .9)),
+    linear-gradient(180deg, transparent, rgb(255 113 92 / .72));
+  --pres-stage-accent-width: 42%;
+  --pres-stage-accent-height: 24%;
+}
+
+/* 中秋:墨蓝夜空 + 金月 + 桂黄点缀。深色主题,只覆盖需要转暖的 token。 */
+.meeting-presentation.theme-midautumn,
+.theme-swatch.theme-midautumn {
+  --pres-page-bg:
+    linear-gradient(90deg, rgb(243 198 94 / .26) 0 2.8%, transparent 2.8% 100%),
+    linear-gradient(145deg, #0a1730 0%, #16304f 54%, #060e1f 100%);
+  --pres-stage-bg:
+    radial-gradient(circle at 78% 20%, rgb(255 233 168 / .16), transparent 34%),
+    linear-gradient(135deg, #10243f 0%, #1d3a5e 48%, #091629 100%);
+  --pres-stage-shadow: 0 2.4vh 8vh rgb(4 10 22 / .52);
+  --pres-stage-border: rgb(243 198 94 / .08);
+  --pres-stage-accent:
+    linear-gradient(90deg, transparent, rgb(243 198 94 / .82)),
+    linear-gradient(180deg, transparent, rgb(198 74 74 / .58));
+
+  --pres-heading-shadow: 0 14px 30px rgb(0 0 0 / .34);
+  --pres-accent: #f3c65e;
+  --pres-thanks-heading: #f3c65e;
+  --pres-cover-strong: #ffe9a8;
+  --pres-cover-time: #b9cde4;
+  --pres-intro-body: #dbe7f4;
+  --pres-line: #eef3f9;
+  --pres-thanks-quote: #dbe7f4;
+  --pres-muted: #b9cde4;
+  --pres-objective: #f3c65e;
+  --pres-meta: #a3bcd6;
+  --pres-meta-soft: #7e9ab6;
+
+  --pres-tbd-fg: #f3c65e;
+  --pres-tbd-bg: rgb(243 198 94 / .14);
+  --pres-tbd-border: rgb(243 198 94 / .5);
+
+  --pres-badge-bg: rgb(8 20 38 / .42);
+  --pres-badge-border: rgb(243 198 94 / .3);
+  --pres-badge-chip-bg: rgb(243 198 94 / .12);
+  --pres-belief-bg: rgb(243 198 94 / .1);
+  --pres-belief-fg: #f6efdf;
+  --pres-board-section-bg: rgb(8 20 38 / .46);
+  --pres-board-section-border: #f3c65e;
+  --pres-board-heading: #f3c65e;
+  --pres-board-divider: rgb(243 198 94 / .18);
+  --pres-board-fg: #f6efdf;
+  --pres-board-accent: #e8c98a;
+
+  --pres-qr-border: #fdf6e6;
+  --pres-qr-fg: #b9cde4;
+  --pres-qr-bg: rgb(253 246 230 / .12);
+
+  --pres-timer-border: rgb(243 198 94 / .2);
+  --pres-timer-bg: rgb(8 20 38 / .6);
+  --pres-timer-bg-active: rgb(8 20 38 / .84);
+  --pres-timer-label: #e8c98a;
+  --pres-timer-btn-border: rgb(243 198 94 / .24);
+  --pres-timer-btn-bg: rgb(243 198 94 / .1);
+}
+
+/* 满月挂右上、祥云压左下:两者都在 z-index 0,永远在正文之下。 */
+.theme-midautumn .stage-decor::before {
+  /* 月亮放在左上品牌标识与右上 WOD 水印之间，避开所有页面的正文与二维码 */
+  top: 2.5cqh;
+  left: 41cqw;
+  width: 22cqh;
+  height: 22cqh;
+  background-image: url("./assets/presentation/midautumn/moon.svg");
+  background-size: contain;
+}
+
+.theme-midautumn .stage-decor::after {
+  bottom: 0;
+  left: 0;
+  width: 52cqw;
+  height: 26cqh;
+  background-image: url("./assets/presentation/midautumn/clouds.svg");
+  background-position: left bottom;
+  background-size: contain;
+  opacity: .55;
+}
+
+/* 万圣节:深茄紫夜色 + 南瓜橙主强调,烛光金与薰衣草紫做辅,饱和色控制在三种以内。 */
+.meeting-presentation.theme-halloween,
+.theme-swatch.theme-halloween {
+  --pres-page-bg:
+    linear-gradient(90deg, rgb(255 154 60 / .24) 0 2.8%, transparent 2.8% 100%),
+    linear-gradient(145deg, #140c1e 0%, #26152f 54%, #0b0710 100%);
+  --pres-stage-bg:
+    radial-gradient(circle at 52% 8%, rgb(255 190 110 / .1), transparent 30%),
+    radial-gradient(circle at 12% 100%, rgb(255 140 50 / .16), transparent 34%),
+    linear-gradient(135deg, #1c1228 0%, #2c1a3c 48%, #120b1a 100%);
+  --pres-stage-shadow: 0 2.4vh 8vh rgb(6 2 10 / .56);
+  --pres-brand-plate: linear-gradient(90deg, rgb(14 7 22 / .78), rgb(14 7 22 / .4) 56%, transparent);
+  --pres-stage-border: rgb(255 154 60 / .06);
+  --pres-stage-accent:
+    linear-gradient(90deg, transparent, rgb(255 154 60 / .84)),
+    linear-gradient(180deg, transparent, rgb(122 70 168 / .62));
+
+  --pres-heading-shadow: 0 14px 30px rgb(0 0 0 / .4);
+  --pres-accent: #ff9a3c;
+  --pres-thanks-heading: #ff9a3c;
+  --pres-cover-strong: #ffd9ae;
+  --pres-cover-time: #c6b3dc;
+  --pres-intro-body: #e6dcef;
+  --pres-line: #f3edf8;
+  --pres-thanks-quote: #e6dcef;
+  --pres-muted: #d2c2e4;
+  --pres-objective: #ffb066;
+  --pres-meta: #a993c0;
+  --pres-meta-soft: #85719d;
+
+  --pres-action-bg: #ff9a3c;
+  --pres-badge-rule: #ff9a3c;
+  --pres-program-break: #ffb066;
+
+  --pres-tbd-fg: #ffb066;
+  --pres-tbd-bg: rgb(255 154 60 / .14);
+  --pres-tbd-border: rgb(255 154 60 / .5);
+
+  --pres-badge-bg: rgb(14 7 22 / .44);
+  --pres-badge-border: rgb(198 179 220 / .24);
+  --pres-badge-chip-bg: rgb(198 179 220 / .1);
+  --pres-belief-bg: rgb(198 179 220 / .1);
+  --pres-belief-fg: #f6eef9;
+  --pres-board-section-bg: rgb(14 7 22 / .48);
+  --pres-board-section-border: #ff9a3c;
+  --pres-board-heading: #ffa552;
+  --pres-board-divider: rgb(198 179 220 / .16);
+  --pres-board-fg: #f6eef9;
+  --pres-board-accent: #ffd27a;
+
+  --pres-qr-border: #f6eef9;
+  --pres-qr-fg: #c6b3dc;
+  --pres-qr-bg: rgb(246 238 249 / .1);
+
+  --pres-timer-border: rgb(255 154 60 / .2);
+  --pres-timer-bg: rgb(14 7 22 / .6);
+  --pres-timer-bg-active: rgb(14 7 22 / .84);
+  --pres-timer-label: #ffb066;
+  --pres-timer-btn-border: rgb(255 154 60 / .24);
+  --pres-timer-btn-bg: rgb(255 154 60 / .1);
+}
+
+/* 蛛网挂右上角、南瓜与女巫帽压左下:都在 z-index 0,永远在正文之下。 */
+.theme-halloween .stage-decor::before {
+  top: 0;
+  right: 0;
+  width: 25cqh;
+  height: 34cqh;
+  background-image: url("./assets/presentation/halloween/cobweb.svg");
+  background-position: right top;
+  background-size: contain;
+  opacity: .42;
+}
+
+.theme-halloween .stage-decor::after {
+  bottom: 0;
+  left: 1.2cqw;
+  width: 28cqh;
+  height: 15.4cqh;
+  background-image: url("./assets/presentation/halloween/pumpkins.svg");
+  background-position: left bottom;
+  background-size: contain;
+  opacity: .58;
+}

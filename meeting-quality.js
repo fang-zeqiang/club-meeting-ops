@@ -54,12 +54,12 @@ function speakerSupplyMetric(meeting) {
 }
 
 function runCompletionMetric(meeting, context = {}) {
-  const awardsConfirmed = Boolean(context.awardsConfirmed || meeting.confirmedAwards);
+  const awardsReady = Boolean(context.awardsReady);
   const responses = Number(context.responseCount || 0);
   const formReady = Boolean(meeting.votingForm?.formId || meeting.qrSource === "manual");
-  const score = awardsConfirmed ? 20 : responses ? 14 : formReady ? 10 : 4;
+  const score = awardsReady ? 20 : responses ? 14 : formReady ? 10 : 4;
   return metric(score, statusForScore(score), [
-    awardsConfirmed ? "awards confirmed" : responses ? `${responses} voting responses` : formReady ? "voting entry ready" : "voting not ready",
+    awardsReady ? "awards ready" : responses ? `${responses} voting responses` : formReady ? "voting entry ready" : "voting not ready",
   ], 1);
 }
 

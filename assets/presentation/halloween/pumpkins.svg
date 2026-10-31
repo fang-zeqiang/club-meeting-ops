@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 28 460 252" width="460" height="252" role="presentation">
+  <defs>
+    <radialGradient id="glow" cx="34%" cy="78%" r="60%">
+      <stop offset="0%" stop-color="#ff9a3c" stop-opacity=".32"/>
+      <stop offset="100%" stop-color="#ff9a3c" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="lobe" cx="42%" cy="34%" r="74%">
+      <stop offset="0%" stop-color="#ffbe6b"/>
+      <stop offset="55%" stop-color="#f4801f"/>
+      <stop offset="100%" stop-color="#b44a0e"/>
+    </radialGradient>
+    <radialGradient id="lobe-side" cx="50%" cy="32%" r="78%">
+      <stop offset="0%" stop-color="#f59a43"/>
+      <stop offset="60%" stop-color="#d9661a"/>
+      <stop offset="100%" stop-color="#8f370a"/>
+    </radialGradient>
+    <linearGradient id="hat" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#4a2c66"/>
+      <stop offset="100%" stop-color="#22122f"/>
+    </linearGradient>
+  </defs>
+
+  <ellipse cx="160" cy="250" rx="220" ry="60" fill="url(#glow)"/>
+
+  <!-- 小南瓜(右) -->
+  <g transform="translate(330 218)">
+    <ellipse cx="-30" cy="0" rx="34" ry="40" fill="url(#lobe-side)"/>
+    <ellipse cx="30" cy="0" rx="34" ry="40" fill="url(#lobe-side)"/>
+    <ellipse cx="-13" cy="0" rx="30" ry="43" fill="url(#lobe)"/>
+    <ellipse cx="13" cy="0" rx="30" ry="43" fill="url(#lobe)"/>
+    <ellipse cx="0" cy="0" rx="20" ry="45" fill="url(#lobe)"/>
+    <path d="M-2 -44 C -4 -54 0 -62 8 -66 L 11 -61 C 6 -57 5 -50 6 -44 Z" fill="#5d4a1e"/>
+    <path d="M6 -58 C 18 -66 30 -62 34 -52" fill="none" stroke="#6e8a3a" stroke-width="3" stroke-linecap="round"/>
+  </g>
+
+  <!-- 大南瓜(左)-->
+  <g transform="translate(160 200)">
+    <ellipse cx="-58" cy="4" rx="52" ry="58" fill="url(#lobe-side)"/>
+    <ellipse cx="58" cy="4" rx="52" ry="58" fill="url(#lobe-side)"/>
+    <ellipse cx="-30" cy="2" rx="46" ry="64" fill="url(#lobe)"/>
+    <ellipse cx="30" cy="2" rx="46" ry="64" fill="url(#lobe)"/>
+    <ellipse cx="0" cy="0" rx="32" ry="66" fill="url(#lobe)"/>
+    <g fill="none" stroke="#8f370a" stroke-width="2" opacity=".45">
+      <path d="M-30 -58 C -48 -30 -48 34 -30 62"/>
+      <path d="M30 -58 C 48 -30 48 34 30 62"/>
+    </g>
+  </g>
+
+  <!-- 女巫帽:斜扣在大南瓜顶上 -->
+  <g transform="rotate(-8 160 140) translate(0 28) scale(1 .8)">
+    <ellipse cx="160" cy="142" rx="92" ry="15" fill="#22122f"/>
+    <ellipse cx="160" cy="139" rx="92" ry="13" fill="url(#hat)"/>
+    <path d="M114 138 C 126 104 134 70 146 40 C 154 20 172 6 198 14 C 210 18 214 28 206 30 C 188 24 176 34 172 52 C 168 80 190 112 204 138 Z" fill="url(#hat)"/>
+    <path d="M114 138 C 126 104 134 70 146 40" fill="none" stroke="#b79bd6" stroke-width="2" stroke-linecap="round" opacity=".55"/>
+    <path d="M115 136 C 116 128 118 122 121 116 C 146 122 172 122 195 115 C 198 122 201 128 204 136 C 174 144 144 144 115 136 Z" fill="#ff9a3c"/>
+    <rect x="149" y="116" width="22" height="22" rx="2" fill="none" stroke="#ffd27a" stroke-width="3.5"/>
+  </g>
+</svg>

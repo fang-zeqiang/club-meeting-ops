@@ -27,12 +27,15 @@ export function upgradeAgenda(meeting) {
   upgraded.blocks.flatMap((block) => block.items || []).forEach((item) => {
     item.role = ROLE_NAMES[item.role] || item.role;
   });
+  const hasFunctionalSessions = upgraded.blocks
+    .flatMap((block) => block.items || [])
+    .some((item) => FUNCTIONAL.some((definition) => item.role === definition.role));
 
   for (const definition of FUNCTIONAL) {
     const existing = upgraded.blocks.flatMap((block) => block.items || []).filter((item) => item.role === definition.role);
     const assignment = existing.find((item) => item.member) || existing[0] || {};
     existing.forEach((item) => { item.roleAssignmentId = definition.key; });
-    if (!existing.length) {
+    if (!existing.length && !hasFunctionalSessions && upgraded.meetingType !== "contest") {
       opening.items.push({ id: generatedId(upgraded, `${definition.key}-intro`), kind: "role", session: `${definition.role} Intro`, role: definition.role, duration: definition.intro, memberId: assignment.memberId || "", member: assignment.member || "", status: assignment.status || "vacant", roleAssignmentId: definition.key });
       closing.items.unshift({ id: generatedId(upgraded, `${definition.key}-report`), kind: "role", session: `${definition.role} Report`, role: definition.role, duration: definition.report, memberId: assignment.memberId || "", member: assignment.member || "", status: assignment.status || "vacant", roleAssignmentId: definition.key });
     }
@@ -54,7 +57,7 @@ export function upgradeAgenda(meeting) {
 
   const speeches = (prepared?.items || []).filter((item) => item.kind === "speech");
   const evaluatorRows = (evaluation?.items || []).filter((item) => item.role === "Individual Evaluator");
-  speeches.forEach((speech, index) => {
+  if (upgraded.meetingType !== "contest" || evaluation) speeches.forEach((speech, index) => {
     speech.evaluatorStatus = speech.evaluatorStatus || evaluatorRows[index]?.status || "vacant";
     let row = evaluatorRows[index];
     if (!row && evaluation) {

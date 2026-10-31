@@ -28,10 +28,13 @@ const envKeys = [
   "BITABLE_MEMBERS_TABLE_ID",
   "BITABLE_ASSETS_TABLE_ID",
   "BITABLE_MCP_TOKENS_TABLE_ID",
+  "BITABLE_MCP_AGENDA_CHANGES_TABLE_ID",
   "BITABLE_ROLES_TABLE_ID",
   "AGENDA_EDIT_PASSCODE_HASH",
   "BOOKING_PASSCODE_HASH",
   "AGENDA_SESSION_SECRET",
+  "MCP_AGENDA_WRITE_ENABLED",
+  "MCP_BOOKING_WRITE_ENABLED",
 ];
 
 test("health reports local-only when template persistence is not configured", () => {
@@ -57,6 +60,14 @@ test("health reports local-only when template persistence is not configured", ()
     assert.equal(response.body.persistence, "local-only");
     assert.equal(response.body.booking, "not-configured");
     assert.equal(response.body.mcp, "ready");
+    assert.equal(response.body.mcpAgendaWrite, "disabled");
+    assert.equal(response.body.mcpBookingWrite, "disabled");
+
+    process.env.BITABLE_MCP_AGENDA_CHANGES_TABLE_ID = "audit";
+    process.env.MCP_BOOKING_WRITE_ENABLED = "true";
+    const enabled = responseMock();
+    healthHandler({}, enabled);
+    assert.equal(enabled.body.mcpBookingWrite, "enabled");
   } finally {
     Object.entries(previous).forEach(([key, value]) => {
       if (value == null) delete process.env[key];
@@ -64,3 +75,4 @@ test("health reports local-only when template persistence is not configured", ()
     });
   }
 });
+

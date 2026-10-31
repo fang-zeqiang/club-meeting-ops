@@ -62,9 +62,9 @@ app.innerHTML = `
           <p>无需创建第二个 Server。Agent 先读取明确会员与会议，再按动作风险决定立即执行或先提案确认。</p>
         </header>
         <div class="mcp-example-grid">
-          <article><span>CONTEXT</span><strong>读取目标与目录</strong><code>get_role_booking_context</code><code>search_pathways_projects</code></article>
-          <article><span>IMMEDIATE</span><strong>预约空缺、新建目标</strong><code>book_role</code><code>create_booking_goal</code></article>
-          <article><span>CONFIRM FIRST</span><strong>取消、转让与资料修改</strong><code>propose_role_booking_change</code><code>apply_role_booking_change</code></article>
+          <article><span>CONTEXT</span><strong>读取目标与目录</strong><code>vpe_get_role_booking_context</code><code>vpe_search_pathways_projects</code></article>
+          <article><span>IMMEDIATE</span><strong>预约空缺、新建目标</strong><code>vpe_book_role</code><code>vpe_create_booking_goal</code></article>
+          <article><span>CONFIRM FIRST</span><strong>取消、转让与资料修改</strong><code>vpe_propose_role_booking_change</code><code>vpe_apply_role_booking_change</code></article>
         </div>
         <p class="mcp-readonly-note"><span aria-hidden="true">↻</span><strong>已经连接过：</strong>保留原 endpoint 与 Token，重连客户端并重新 Scan Tools，再点击下方“测试连接”；显示 “Agenda + Role Booking MCP ready” 才算升级完成。</p>
         <p class="mcp-readonly-note"><span aria-hidden="true">◆</span><strong>管理员部署：</strong>Production 需启用 <code>MCP_BOOKING_WRITE_ENABLED=true</code>；个人客户端无需配置此变量。</p>
@@ -390,7 +390,7 @@ document.querySelector("[data-test-token]").addEventListener("click", async (eve
       clientInfo: { name: "vpe-agenda-setup", version: "1" },
     });
     const listed = await call(2, "tools/list");
-    const required = ["get_role_booking_context", "search_pathways_projects", "book_role", "create_booking_goal", "propose_role_booking_change", "apply_role_booking_change"];
+    const required = ["vpe_search_members", "vpe_get_role_booking_context", "vpe_search_pathways_projects", "vpe_book_role", "vpe_create_booking_goal", "vpe_propose_role_booking_change", "vpe_apply_role_booking_change"];
     if (!required.every((name) => listed.tools?.some((tool) => tool.name === name))) throw new Error();
     status.textContent = "连接成功：Agenda + Role Booking MCP ready。";
     status.className = "mcp-token-status ok";
@@ -419,7 +419,7 @@ clientTabs.forEach((tab, index) => {
   });
 });
 document.querySelector("[data-copy-prompt]").addEventListener("click", (event) => copy(
-  `请帮我配置 VPE Agenda MCP。\nMCP endpoint: ${endpoint}\nTransport: Streamable HTTP\n认证：ChatGPT Work 使用 OAuth；WorkBuddy 等其他客户端使用 Authorization: Bearer <我的个人Token>。WorkBuddy 用户级配置写入 ~/.workbuddy/mcp.json。\n配置后调用 initialize 和 tools/list，确认包含 list_meetings、generate_signup_text、change_agenda、undo_last_agenda_change、get_role_booking_context、book_role、propose_role_booking_change、apply_role_booking_change、get_future_posters。Agenda Draft 单项修改直接执行；Final、批量与结构性修改先显示日期、期数和摘要，等我明确确认后再次调用 change_agenda。Role Booking 取消、转让与资料修改也必须先确认。不要把 Token 写入 Git、URL 或回答正文。`,
+  `请帮我配置 VPE Agenda MCP。\nMCP endpoint: ${endpoint}\nTransport: Streamable HTTP\n认证：ChatGPT Work 使用 OAuth；WorkBuddy 等其他客户端使用 Authorization: Bearer <我的个人Token>。WorkBuddy 用户级配置写入 ~/.workbuddy/mcp.json。\n配置后调用 initialize 和 tools/list，确认包含 vpe_list_meetings、vpe_search_members、vpe_generate_signup_text、vpe_change_agenda、vpe_undo_last_agenda_change、vpe_get_role_booking_context、vpe_book_role、vpe_propose_role_booking_change、vpe_apply_role_booking_change、vpe_get_future_posters。用户问会员是否存在时必须调用 vpe_search_members，不得猜测。预约角色时先调用 vpe_get_role_booking_context；有多个同角色空位时按 label、session 或 speakerName 询问用户选择，再调用 vpe_book_role。Agenda Draft 单项修改直接执行；Final、批量与结构性修改先显示日期、期数和摘要，等我明确确认后再次调用 vpe_change_agenda。Role Booking 取消、转让与资料修改也必须先确认。不要把 Token 写入 Git、URL 或回答正文。`,
   event.currentTarget,
 ));
 

@@ -74,3 +74,10 @@ export function groupMeetingAssignments(assignments, roleCatalog) {
     })),
   }));
 }
+
+export function presentationPreviewUrl(meetingNumber, jump, order = 0) {
+  if (!meetingNumber) return "";
+  const params = new URLSearchParams({ jump });
+  if (order) params.set("order", String(order));
+  return `/m/${encodeURIComponent(String(meetingNumber))}/presentation?${params.toString()}`;
+}

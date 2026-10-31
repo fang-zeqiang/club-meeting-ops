@@ -22,7 +22,7 @@ const meeting = {
 test("builds stable meeting quality metrics", () => {
   const metrics = buildQualityMetrics(meeting, {
     responseCount: 5,
-    awardsConfirmed: true,
+    awardsReady: true,
     feedback: { averageRating: 4.5, comments: ["Great"] },
   });
   assert.deepEqual(Object.keys(metrics), ["readiness", "roleCoverage", "speakerSupply", "runCompletion", "audienceFeedback"]);
@@ -37,4 +37,9 @@ test("marks missing audience feedback as unknown without guessing", () => {
   assert.equal(metrics.audienceFeedback.status, "unknown");
   assert.equal(metrics.audienceFeedback.confidence, 0);
   assert.ok(qualityConfidence(metrics) < 1);
+});
+
+test("run quality ignores legacy confirmed snapshots", () => {
+  const metrics = buildQualityMetrics({ ...meeting, confirmedAwards: {} }, { responseCount: 5 });
+  assert.equal(metrics.runCompletion.score, 14);
 });

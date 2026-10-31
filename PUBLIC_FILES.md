@@ -8,6 +8,7 @@ Every tracked path belongs to one reviewed category:
 - `scripts/`: local checks and explicit Base maintenance commands.
 - `docs/`: public setup, schema, changelog, demo data, and asset review.
 - `.github/`: read-only CI and repository governance.
+- `skills/`: agent skill instructions for the MCP tools, with no credentials or club data.
 - `assets/branding/demo-club-mark.svg`: original reviewed demo artwork.
 - Root metadata: license, contribution, security, package, Vercel, and README files.
 

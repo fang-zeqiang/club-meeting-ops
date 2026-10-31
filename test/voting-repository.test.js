@@ -3,9 +3,9 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
   AWARDS, candidateChangePlan, candidateChangeSummary, candidatesFromMeeting, FEEDBACK_FIELDS,
-  feedbackFromRecords, tableTopicsFormFieldInput, tallyVotingResults,
+  feedbackFromRecords, retainTableTopicsOptionIds, tableTopicsFormFieldInput, tallyVotingResults,
 } from "../server/voting-repository.js";
-import { roleAwardIssues } from "../role-awards.js";
+import { roleAwardIssues, setRoleTakerExtension } from "../role-awards.js";
 
 const source = await readFile(new URL("../server/voting-repository.js", import.meta.url), "utf8");
 
@@ -43,6 +43,22 @@ test("role taker extension rejects roles already owned by another award pool", (
   assert.match(issues.blockers.join(" "), /Best Facilitator/);
 });
 
+test("Sharing Master stays out of Best Role Taker until explicitly checked", () => {
+  const meeting = {
+    blocks: [{ items: [
+      { id: "sharing", kind: "role", role: "Sharing Master", member: "Blake", status: "confirmed" },
+    ] }],
+  };
+  assert.deepEqual(candidatesFromMeeting(meeting).roleTaker, []);
+  meeting.votingForm = { roleAwardConfig: { roleTakerRoleIds: [] } };
+  assert.deepEqual(candidatesFromMeeting(meeting).roleTaker, []);
+  meeting.votingForm.roleAwardConfig = setRoleTakerExtension(meeting.votingForm, [{ id: "custom:sharing_master" }], "custom:sharing_master", true);
+  assert.deepEqual(candidatesFromMeeting(meeting).roleTaker.map(({ name }) => name), ["Blake"]);
+  meeting.votingForm.roleAwardConfig = setRoleTakerExtension(meeting.votingForm, [{ id: "custom:sharing_master" }], "custom:sharing_master", false);
+  assert.equal(meeting.votingForm.roleAwardConfig.sharingMasterDefaultOptOut, true);
+  assert.deepEqual(candidatesFromMeeting(meeting).roleTaker, []);
+});
+
 test("candidate snapshots remain stable and ordered", () => {
   const candidates = candidatesFromMeeting({
     tableTopicsSpeakers: ["Topic A"],
@@ -77,11 +93,13 @@ test("candidate change summary covers additions, removals and renames", () => {
   assert.deepEqual(candidateChangeSummary(next, previous), {
     addedCount: 2,
     removedCount: 1,
+    renamedCount: 0,
     added: [
       { award: "Best Role Taker", label: "TME — Carol" },
       { award: "Best Table Topics Speaker", label: "Dora" },
     ],
     removed: [{ award: "Best Role Taker", label: "TME — Alice" }],
+    renamed: [],
   });
 });
 
@@ -91,6 +109,41 @@ test("any candidate change requires response reset only when responses exist", (
   assert.equal(candidateChangePlan(added, previous, 0).responseResetRequired, false);
   assert.equal(candidateChangePlan(added, previous, 3).responseResetRequired, true);
   assert.equal(candidateChangePlan(previous, previous, 3).responseResetRequired, false);
+});
+
+test("Table Topics rename keeps a stable candidate ID and does not require a response reset", () => {
+  const previous = { tableTopicsSpeaker: [{ id: "entry-ada", label: "Ada" }] };
+  const next = { tableTopicsSpeaker: [{ id: "entry-ada", label: "Ada Lovelace" }] };
+  const changes = candidateChangeSummary(next, previous);
+  assert.deepEqual(changes, {
+    addedCount: 0,
+    removedCount: 0,
+    renamedCount: 1,
+    added: [],
+    removed: [],
+    renamed: [{ award: "tableTopicsSpeaker", id: "entry-ada", from: "Ada", to: "Ada Lovelace" }],
+  });
+  assert.equal(candidateChangePlan(next, previous, 3).changed, true);
+  assert.equal(candidateChangePlan(next, previous, 3).responseResetRequired, false);
+});
+
+test("Table Topics rename keeps the existing Bitable option ID", () => {
+  const candidates = [{ id: "entry-ada", label: "Ada Lovelace" }];
+  const previous = [{ id: "entry-ada", label: "Ada" }];
+  const existingOptions = [{ id: "opt_ada", name: "Ada" }];
+  assert.deepEqual(retainTableTopicsOptionIds(candidates, previous, existingOptions), [
+    { id: "opt_ada", name: "Ada Lovelace" },
+  ]);
+});
+
+test("structured Table Topics entries are the stable voting candidates", () => {
+  const candidates = candidatesFromMeeting({
+    blocks: [],
+    votingForm: null,
+    tableTopicsEntries: [{ id: "entry-ada", name: "Ada", order: 1, placeholder: false }],
+    tableTopicsSpeakers: ["Ada"],
+  });
+  assert.deepEqual(candidates.tableTopicsSpeaker, [{ id: "entry-ada", memberId: "", name: "Ada", context: "", label: "Ada" }]);
 });
 
 test("table topics fast sync always reconciles form visibility and order", () => {
@@ -135,6 +188,15 @@ test("live tally keeps zero-vote candidates, historical votes, ties and a stable
   assert.deepEqual(first.awards.tableTopicsSpeaker.winners.map(({ name }) => name), ["Alice", "Old"]);
   assert.equal(first.resultsVersion, tallyVotingResults(current, synced, records).resultsVersion);
   assert.notEqual(first.resultsVersion, tallyVotingResults(current, synced, [...records, records[0]]).resultsVersion);
+});
+
+test("Table Topics tally attributes an old label to the renamed stable entry", () => {
+  const current = { tableTopicsSpeaker: [{ id: "entry-ada", name: "Ada Lovelace", label: "Ada Lovelace" }] };
+  const synced = { tableTopicsSpeaker: [{ id: "entry-ada", name: "Ada", label: "Ada" }] };
+  const results = tallyVotingResults(current, synced, [{ fields: { "Best Table Topics Speaker": "Ada" } }]);
+  assert.deepEqual(results.awards.tableTopicsSpeaker.candidates, [{
+    id: "entry-ada", name: "Ada Lovelace", label: "Ada Lovelace", votes: 1, historical: false,
+  }]);
 });
 
 test("table creation batches fields while same-table repairs stay serialized", () => {

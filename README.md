@@ -55,9 +55,12 @@ Preview mode uses fictional data, skips sign-in, and performs no Base writes.
 - Edit meeting details, Agenda blocks, roles, speeches, and learning paths.
 - Reuse club-specific Agenda templates and public branding.
 - Render two-page A4 agenda and live presentation views.
-- Prepare voting, confirm awards, and present certificates.
+- Run the room from Presentation: timer signals, seasonal themes, a phone remote, a digital whiteboard, Table Topics draws, and Word of the Day cards.
+- Prepare voting, confirm awards, and present certificates live inside Presentation.
+- Switch a meeting to speech contest mode, with off-agenda roles and contest awards.
+- Review role booking history and past meetings in Role Book.
 - Review meeting readiness, risks, and post-meeting quality.
-- Read meeting state through MCP; manage Draft Agenda edits and role bookings with explicit authorization, confirmation, audit, and revision checks.
+- Read meeting state through MCP; manage Draft Agenda edits, role bookings, Table Topics, and Word of the Day with explicit authorization, confirmation, audit, and revision checks.
 
 ## Architecture
 
@@ -172,6 +175,12 @@ against a dedicated test Base, never production.
    `PUBLIC_APP_ORIGIN` to the deployment's public HTTPS origin, with no path.
 5. Use a new Base and new secrets for this deployment.
 6. Deploy and verify `/api/health`.
+
+MCP write tools stay off until `MCP_AGENDA_WRITE_ENABLED` or
+`MCP_BOOKING_WRITE_ENABLED` is exactly `true` and the `MCP Agenda Changes`
+audit table exists. The Presentation remote needs a Supabase project
+(`VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`); without it the rest of
+Presentation works and the remote stays hidden.
 
 Preview deployments should use isolated test resources or no persistence.
 Never inject production secrets into fork pull requests.

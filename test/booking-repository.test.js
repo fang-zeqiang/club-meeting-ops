@@ -5,10 +5,19 @@ import { groupMeetingAssignments, groupMemberOptions, guestDisplayNameLooksStand
 import {
   applyBookingAssignment,
   bookingAssignments,
+  canManageBookingAssignment,
+  canManagePresentationUrl,
   canonicalBookingRole,
   goalProgress,
+  guestNameWarnings,
+  inspectGuestDirectory,
+  isBookingMeetingEditable,
+  isGuestMember,
   nextPathwayDefaults,
+  normalizeGuestDisplayName,
   parseSpeechDetails,
+  partitionBookingMeetings,
+  reservationsForMember,
 } from "../server/booking-repository.js";
 import { roleCatalogFromRecords } from "../server/roles-repository.js";
 
@@ -16,6 +25,7 @@ const CATALOG = roleCatalogFromRecords([
   "Prepared Speaker",
   "Individual Evaluator",
   "TME",
+  "TTM",
   "Timer",
   "Photographer",
   "Meeting Manager",
@@ -26,6 +36,7 @@ const CATALOG = roleCatalogFromRecords([
     role_name,
     aliases: role_name === "TME" ? "Toastmaster" : role_name === "Guest Talk Host" ? "Guest Introduction Host" : "",
     booking_public: true,
+    guest_booking_public: role_name !== "Prepared Speaker",
     active: true,
     sort_order: index,
   },
@@ -57,6 +68,50 @@ test("Guest display-name guidance accepts both documented formats", () => {
   assert.equal(guestDisplayNameLooksStandard("Amy, Guest"), true);
   assert.equal(guestDisplayNameLooksStandard("Amy, PM3@AF TMC"), true);
   assert.equal(guestDisplayNameLooksStandard("Amy"), false);
+});
+
+test("Book Guest names normalize the three accepted formats and reject other input", () => {
+  assert.equal(normalizeGuestDisplayName(" Amy Chen , guest "), "Amy Chen, Guest");
+  assert.equal(normalizeGuestDisplayName("Amy Chen, PM3@AF TMC"), "Amy Chen, PM3@AF TMC");
+  assert.equal(normalizeGuestDisplayName("李雷, @上海西区"), "李雷, @上海西区");
+  for (const value of ["Amy Chen", "Amy Chen, PM3", "Amy Chen, @", "Amy Chen, PM3@AF@TMC", "x".repeat(81)]) {
+    assert.throws(() => normalizeGuestDisplayName(value), { code: "INVALID_GUEST_NAME" });
+  }
+});
+
+test("Book Guest inspection merges warnings and protects directory identities", () => {
+  const directory = [
+    { id: "member", displayName: "Alex Chen, PM1@Demo TMC", memberType: "member", active: true },
+    { id: "guest", displayName: "Amy Chen, Guest", memberType: "guest_placeholder", active: true },
+    { id: "guest-club", displayName: "Amy Chen, PM3@AF TMC", memberType: "guest_placeholder", active: true },
+    { id: "inactive", displayName: "Old Guest, Guest", memberType: "guest_placeholder", active: false },
+  ];
+  const exact = inspectGuestDirectory(" amy chen , guest ", directory);
+  assert.equal(exact.exactGuest.id, "guest");
+  assert.deepEqual(exact.candidates.map(({ id }) => id), ["guest-club"]);
+  assert.deepEqual(guestNameWarnings("Amy, @AF TMC"), [
+    "请确认这是嘉宾的完整姓名",
+    "请确认该嘉宾目前没有组织角色头衔",
+  ]);
+  assert.deepEqual(guestNameWarnings("李雷, @上海西区"), [
+    "请确认这是嘉宾的完整姓名",
+    "嘉宾来自中文演讲俱乐部吗？否则建议使用英文",
+    "请确认该嘉宾目前没有组织角色头衔",
+  ]);
+  assert.throws(() => inspectGuestDirectory("Alex Chen, PM1@Demo TMC", directory), { code: "GUEST_NAME_IS_MEMBER" });
+  assert.throws(() => inspectGuestDirectory("Old Guest, Guest", directory), { code: "GUEST_INACTIVE" });
+  assert.equal(isGuestMember(directory[1]), true);
+  assert.equal(isGuestMember(directory[0]), false);
+});
+
+test("any Book member can manage Guest assignments but not another member assignment", () => {
+  const actor = { id: "actor", displayName: "Actor", memberType: "member", active: true };
+  const owner = { id: "owner", displayName: "Owner", memberType: "member", active: true };
+  const guest = { id: "guest", displayName: "Amy, Guest", memberType: "guest_placeholder", active: true };
+  const directory = [actor, owner, guest];
+  assert.equal(canManageBookingAssignment({ memberId: guest.id, memberName: guest.displayName }, actor, directory), true);
+  assert.equal(canManageBookingAssignment({ memberId: owner.id, memberName: owner.displayName }, actor, directory), false);
+  assert.equal(canManageBookingAssignment({ memberId: actor.id, memberName: actor.displayName }, actor, directory), true);
 });
 
 test("member Pathways defaults target the next unfinished level", () => {
@@ -154,6 +209,22 @@ test("booking assignments collapse linked functional rows and expose meeting rol
   assert.ok(assignments.some((assignment) => assignment.id === "meeting:manager"));
 });
 
+test("off-agenda Timer is bookable once while Ballot Counter stays internal", () => {
+  const input = meeting({ id: "meeting-114", date: "2026-11-10", role: "President" });
+  input.offAgendaRoles = [
+    { role: "Timer", memberId: "", member: "", signupOpen: true },
+    { role: "Ballot Counter", memberId: "", member: "", signupOpen: false },
+  ];
+  const assignments = bookingAssignments(input, CATALOG);
+  assert.equal(assignments.filter(({ role }) => role === "Timer").length, 1);
+  assert.equal(assignments.some(({ role }) => role === "Ballot Counter"), false);
+  const timer = assignments.find(({ role }) => role === "Timer");
+  applyBookingAssignment(input, timer, { id: "member-1", displayName: "Amy" });
+  assert.equal(input.offAgendaRoles[0].memberId, "member-1");
+  assert.equal(input.offAgendaRoles[0].member, "Amy");
+  assert.equal(input.blocks[0].items[0].role, "President");
+});
+
 test("President stays internal to Agenda", () => {
   const input = meeting({ id: "meeting-2", date: "2026-07-24", role: "President" });
   assert.equal(bookingAssignments(input, CATALOG).some((assignment) => assignment.role === "President"), false);
@@ -162,6 +233,25 @@ test("President stays internal to Agenda", () => {
 test("Sharing Speaker stays internal to Agenda", () => {
   const input = meeting({ id: "meeting-3", date: "2026-07-24", role: "Sharing Speaker" });
   assert.equal(bookingAssignments(input, CATALOG).some((assignment) => assignment.role === "Sharing Speaker"), false);
+});
+
+test("Sharing Master is available for the meeting summary without becoming bookable", () => {
+  const input = meeting({ id: "meeting-108", date: "2026-09-08", role: "Sharing Master", member: "Blake" });
+  assert.equal(bookingAssignments(input, CATALOG).some((assignment) => assignment.role === "Sharing Master"), false);
+  assert.deepEqual(bookingAssignments(input, CATALOG, { includeSharingMaster: true }).find((assignment) => assignment.role === "Sharing Master"), {
+    id: "item:meeting-108-item",
+    role: "Sharing Master",
+    session: "",
+    memberId: "",
+    memberName: "Blake",
+    status: "confirmed",
+    itemIds: ["meeting-108-item"],
+    linkedSpeechId: "",
+    speechPairId: "",
+    speakerName: "",
+    speechDetails: null,
+    externalPresentationUrl: "",
+  });
 });
 
 test("goal roles and meeting roles share one public enum", () => {
@@ -174,11 +264,24 @@ test("goal roles and meeting roles share one public enum", () => {
   }
 });
 
+test("Guest booking visibility is a narrower RoleCatalog permission", () => {
+  assert.equal(CATALOG.isPublic("Prepared Speaker"), true);
+  assert.equal(CATALOG.isGuestPublic("Prepared Speaker"), false);
+  assert.equal(CATALOG.isGuestPublic("Timer"), true);
+  assert.equal(CATALOG.isGuestPublic("President"), false);
+});
+
 test("prepared speeches and numbered roles normalize to target roles", () => {
   assert.equal(canonicalBookingRole({ kind: "speech", role: "Prepared Speaker 2" }, CATALOG), "Prepared Speaker");
   assert.equal(canonicalBookingRole({ kind: "role", role: "Individual Evaluator 2" }, CATALOG), "Individual Evaluator");
   assert.equal(canonicalBookingRole({ kind: "role", role: "Toastmaster" }, CATALOG), "TME");
   assert.equal(canonicalBookingRole({ kind: "role", role: "Guest Introduction Host" }, CATALOG), "Guest Talk Host");
+});
+
+test("only prepared speakers and TTM can maintain presentation links", () => {
+  assert.equal(canManagePresentationUrl("Prepared Speaker"), true);
+  assert.equal(canManagePresentationUrl("TTM"), true);
+  assert.equal(canManagePresentationUrl("Timer"), false);
 });
 
 test("booking a grouped role updates every Agenda row", () => {
@@ -224,6 +327,86 @@ test("goal progress derives completed and booked counts from Agenda", () => {
   });
 });
 
+test("today's draft meeting stays editable while final and past meetings stay locked", () => {
+  assert.equal(isBookingMeetingEditable({ status: "draft", date: "2026-07-24" }, "2026-07-24"), true);
+  assert.equal(isBookingMeetingEditable({ status: "final", date: "2026-07-24" }, "2026-07-24"), false);
+  assert.equal(isBookingMeetingEditable({ status: "draft", date: "2026-07-23" }, "2026-07-24"), false);
+  assert.equal(isBookingMeetingEditable({ status: "draft", date: "2026-07-25" }, "2026-07-24"), true);
+});
+
+test("booking meetings include today and separate earlier meetings newest first", () => {
+  const meetings = [
+    meeting({ id: "meeting-4", date: "2026-07-25", status: "draft" }),
+    meeting({ id: "meeting-2", date: "2026-07-23", status: "final" }),
+    meeting({ id: "meeting-3", date: "2026-07-24", status: "final" }),
+    meeting({ id: "meeting-1", date: "2026-07-10", status: "archived" }),
+  ];
+
+  const partitions = partitionBookingMeetings(meetings, "2026-07-24");
+  assert.deepEqual(partitions.upcoming.map(({ id }) => id), ["meeting-3", "meeting-4"]);
+  assert.deepEqual(partitions.history.map(({ id }) => id), ["meeting-2", "meeting-1"]);
+});
+
+test("goal progress counts a same-day draft reservation as booked", () => {
+  const member = { id: "member-1", displayName: "Alex CHEN, TM" };
+  const meetings = [meeting({ id: "meeting-1", date: "2026-07-24", status: "draft", memberId: member.id, member: member.displayName })];
+  const goal = { role: "Timer", targetCount: 2, dueDate: "2026-09-30", createdAt: "2026-07-01T00:00:00.000Z" };
+  assert.equal(goalProgress(goal, member, meetings, "2026-07-24", CATALOG).booked, 1);
+});
+
+test("member reservations keep today upcoming and move only earlier dates into history", () => {
+  const member = { id: "member-1", displayName: "Alex CHEN, TM" };
+  const meetings = [
+    meeting({ id: "meeting-4", date: "2026-07-25", status: "draft", memberId: member.id, member: member.displayName }),
+    meeting({ id: "meeting-3", date: "2026-07-24", status: "final", memberId: member.id, member: member.displayName }),
+    meeting({ id: "meeting-2", date: "2026-07-23", status: "archived", memberId: member.id, member: member.displayName }),
+    meeting({ id: "meeting-1", date: "2026-07-10", status: "archived", memberId: member.id, member: member.displayName }),
+    meeting({ id: "meeting-5", date: "2026-07-26", status: "draft", memberId: "member-2", member: "Someone Else" }),
+  ];
+
+  assert.deepEqual(
+    reservationsForMember(meetings, member, "2026-07-24", CATALOG),
+    [
+      { meetingId: "meeting-3", meetingNumber: 3, date: "2026-07-24", theme: undefined, role: "Timer", assignmentId: "item:meeting-3-item", speechDetails: null, externalPresentationUrl: "" },
+      { meetingId: "meeting-4", meetingNumber: 4, date: "2026-07-25", theme: undefined, role: "Timer", assignmentId: "item:meeting-4-item", speechDetails: null, externalPresentationUrl: "" },
+    ],
+  );
+  assert.deepEqual(
+    reservationsForMember(meetings, member, "2026-07-24", CATALOG, { history: true }),
+    [
+      { meetingId: "meeting-2", meetingNumber: 2, date: "2026-07-23", theme: undefined, role: "Timer", assignmentId: "item:meeting-2-item", speechDetails: null, externalPresentationUrl: "" },
+      { meetingId: "meeting-1", meetingNumber: 1, date: "2026-07-10", theme: undefined, role: "Timer", assignmentId: "item:meeting-1-item", speechDetails: null, externalPresentationUrl: "" },
+    ],
+  );
+});
+
+test("historical prepared speeches retain Pathways details", () => {
+  const member = { id: "member-1", displayName: "Alex CHEN, TM" };
+  const input = meeting({ id: "meeting-8", date: "2026-07-20", status: "archived", memberId: member.id, member: member.displayName, role: "Prepared Speaker" });
+  Object.assign(input.blocks[0].items[0], {
+    session: "A Better Question",
+    pathwaysMode: "pathways",
+    pathwaysPath: "Presentation Mastery",
+    pathwaysLevel: "2",
+    pathwaysProjectId: "active-listening",
+    pathwaysFormId: "active-listening-standard",
+    speechObjective: "Listen for meaning before responding.",
+    externalPresentationUrl: "https://docs.qq.com/slide/history",
+  });
+
+  const history = reservationsForMember([input], member, "2026-07-24", CATALOG, { history: true });
+  assert.deepEqual(history[0].speechDetails, {
+    session: "A Better Question",
+    pathwaysMode: "pathways",
+    pathwaysPath: "Presentation Mastery",
+    pathwaysLevel: "2",
+    pathwaysProjectId: "active-listening",
+    pathwaysFormId: "active-listening-standard",
+    speechObjective: "Listen for meaning before responding.",
+  });
+  assert.equal(history[0].externalPresentationUrl, "https://docs.qq.com/slide/history");
+});
+
 test("new speech details use structured Agenda fields while legacy tags stay readable", () => {
   const input = meeting({ id: "meeting-9", date: "2026-07-24", role: "Prepared Speaker" });
   const assignment = bookingAssignments(input, CATALOG).find((candidate) => candidate.role === "Prepared Speaker");
@@ -253,6 +436,7 @@ test("transferring a prepared speech clears the previous speaker details", () =>
     pathwaysProjectId: "project-1",
     pathwaysFormId: "form-1",
     speechObjective: "Old objective",
+    externalPresentationUrl: "https://docs.qq.com/slide/old",
   });
   const assignment = bookingAssignments(input, CATALOG).find((candidate) => candidate.role === "Prepared Speaker");
   applyBookingAssignment(input, assignment, { id: "member-2", displayName: "New Speaker" }, undefined, "transfer");
@@ -260,4 +444,14 @@ test("transferring a prepared speech clears the previous speaker details", () =>
   for (const key of ["session", "pathwaysMode", "pathwaysPath", "pathwaysLevel", "pathwaysProjectId", "pathwaysFormId", "speechObjective"]) {
     assert.equal(speech[key], "");
   }
+  assert.equal(speech.externalPresentationUrl, "");
+});
+
+test("booking and maintaining TTM updates one Agenda presentation link and transfer clears it", () => {
+  const input = meeting({ id: "meeting-11", date: "2026-07-24", role: "TTM" });
+  const assignment = bookingAssignments(input, CATALOG).find((candidate) => candidate.role === "TTM");
+  applyBookingAssignment(input, assignment, { id: "member-1", displayName: "Host A" }, undefined, "book", "https://docs.qq.com/slide/example");
+  assert.equal(bookingAssignments(input, CATALOG).find((candidate) => candidate.role === "TTM").externalPresentationUrl, "https://docs.qq.com/slide/example");
+  applyBookingAssignment(input, assignment, { id: "member-2", displayName: "Host B" }, undefined, "transfer");
+  assert.equal(input.blocks[0].items[0].externalPresentationUrl, "");
 });

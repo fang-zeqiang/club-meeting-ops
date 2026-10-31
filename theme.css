@@ -1,0 +1,207 @@
+html[data-theme="blue"] { color-scheme: light; }
+html[data-theme="spring"] { color-scheme: light; }
+html[data-theme="dark"] { color-scheme: dark; }
+
+.theme-switcher {
+  --theme-switch-surface: #fff;
+  --theme-switch-line: #cbd7e4;
+  --theme-switch-ring: #12233f;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--theme-switch-line);
+  border-radius: 999px;
+  background: var(--theme-switch-surface);
+}
+
+.theme-switcher button {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 5px solid transparent;
+  border-radius: 50%;
+  background-clip: padding-box;
+  cursor: pointer;
+}
+
+.theme-switcher button[data-theme-value="blue"] { background-color: #3157d5; }
+.theme-switcher button[data-theme-value="spring"] { background-color: #81c570; }
+.theme-switcher button[data-theme-value="dark"] { background-color: #122033; }
+.theme-switcher button[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--theme-switch-surface), 0 0 0 4px var(--theme-switch-ring); }
+.theme-switcher button:focus-visible { outline: 3px solid var(--theme-switch-ring); outline-offset: 3px; }
+
+html[data-theme="spring"] .theme-switcher {
+  --theme-switch-surface: #fbfff2;
+  --theme-switch-line: #c9d9c5;
+  --theme-switch-ring: #2f7d50;
+}
+
+html[data-theme="dark"] .theme-switcher {
+  --theme-switch-surface: #17232e;
+  --theme-switch-line: #40505d;
+  --theme-switch-ring: #dce7e2;
+}
+
+html[data-theme="spring"] .app-shell,
+html[data-theme="spring"] .switchboard-shell {
+  --blue: #2f7d50;
+  --sky: #e3f0dc;
+  --canvas: #f3f7f0;
+  --line: #c9d9c5;
+  background: var(--canvas);
+}
+
+html[data-theme="spring"] .app-shell .button.primary {
+  border-color: #2f7d50;
+  background: #2f7d50;
+  box-shadow: 0 4px 0 #235f3d;
+}
+
+html[data-theme="spring"] .app-shell .button.primary:hover { background: #276944; }
+html[data-theme="spring"] .app-shell .topbar { border-bottom-color: #d4e1cf; }
+html[data-theme="spring"] .app-shell .advisor-home { background: var(--canvas); }
+html[data-theme="spring"] .app-shell .stage-navigation { border-bottom-color: #d4e1cf; background: rgb(251 255 248 / 95%); }
+html[data-theme="spring"] .app-shell .signup-advisor-toolbar,
+html[data-theme="spring"] .app-shell .advisor-task-card { border-color: #d4e1cf; }
+html[data-theme="spring"] .app-shell :is(.advisor-current-stage, .advisor-task-card.loading .advisor-urgency, .advisor-source) {
+  border-color: #b9d1b0 !important;
+  color: #276944 !important;
+  background: #e3f0dc !important;
+}
+html[data-theme="spring"] .app-shell :is(button, input, select, textarea, summary, a):focus-visible { outline-color: rgb(47 125 80 / 42%); }
+
+html[data-theme="dark"] .app-shell,
+html[data-theme="dark"] .switchboard-shell {
+  --ink: #edf3f2;
+  --muted: #a7b5b2;
+  --navy: #172633;
+  --navy-2: #213544;
+  --blue: #5ea779;
+  --sky: #20392d;
+  --paper: #16232d;
+  --canvas: #0d151d;
+  --line: #394853;
+  --shadow: 0 18px 44px rgb(0 0 0 / 32%);
+  color: var(--ink);
+  background: var(--canvas);
+}
+
+html[data-theme="dark"] .app-shell .topbar,
+html[data-theme="dark"] .switchboard-shell .topbar { border-bottom-color: #33424e; background: rgb(16 25 34 / 96%); }
+html[data-theme="dark"] .app-shell .advisor-home { background: var(--canvas); }
+html[data-theme="dark"] .app-shell .stage-navigation { border-bottom-color: #33424e; background: rgb(19 31 40 / 96%); }
+html[data-theme="dark"] .app-shell :is(.signup-advisor-toolbar, .advisor-task-card, .saa-action, .quality-metric, .switchboard-row, .switchboard-empty, .modal-card, .more-menu-popover) {
+  border-color: var(--line);
+  color: var(--ink);
+  background: #16232d;
+}
+html[data-theme="dark"] .app-shell :is(.advisor-task-card p, .signup-advisor-copy p, .advisor-lane-head strong) { color: var(--muted); }
+html[data-theme="dark"] .app-shell :is(.advisor-source, .advisor-origin-banner, .system-print-note) { color: #bde2c8; background: var(--sky); }
+html[data-theme="dark"] .app-shell :is(.advisor-current-stage, .advisor-task-card.loading .advisor-urgency) {
+  border-color: #365d47 !important;
+  color: #bde2c8 !important;
+  background: var(--sky) !important;
+}
+html[data-theme="dark"] .app-shell :is(.button, .icon-button) { border-color: var(--line); color: var(--ink); background: #1a2833; }
+html[data-theme="dark"] .app-shell .button.primary { border-color: #5ea779; color: #0d1b15; background: #81c570; box-shadow: 0 4px 0 #3b7652; }
+html[data-theme="dark"] .app-shell .button.primary:hover { background: #92d380; }
+html[data-theme="dark"] .app-shell .topbar-meeting-select select { color: var(--ink); border-bottom-color: #91a19f; }
+html[data-theme="dark"] .app-shell :is(button, input, select, textarea, summary, a):focus-visible { outline-color: rgb(129 197 112 / 62%); }
+
+/* Agenda pages keep their official output palette in every interface theme. */
+html[data-theme] .agenda-page {
+  --ink: #12233f;
+  --muted: #65738a;
+  --navy: #12233f;
+  --navy-2: #243b66;
+  --blue: #3157d5;
+  --sky: #dfe9ff;
+  --paper: #fff;
+  --canvas: #eaf2f8;
+  --line: #cbd7e4;
+  color: var(--ink);
+}
+
+html[data-theme="spring"] {
+  --about-bg: #f3f7f0;
+  --about-surface: #fbfff8;
+  --about-surface-strong: #e3f0dc;
+  --about-ink: #12233f;
+  --about-muted: #5f7069;
+  --about-line: #c9d9c5;
+  --about-accent: #2f7d50;
+  --about-accent-strong: #2f7d50;
+  --about-accent-soft: #e3f0dc;
+  --about-shadow: rgb(31 95 69 / 14%);
+}
+
+html[data-theme="dark"] {
+  --about-bg: #0d151d;
+  --about-surface: #16232d;
+  --about-surface-strong: #20313d;
+  --about-ink: #edf3f2;
+  --about-muted: #a7b5b2;
+  --about-line: #394853;
+  --about-accent: #81c570;
+  --about-accent-strong: #3b7652;
+  --about-accent-soft: #20392d;
+  --about-shadow: rgb(0 0 0 / 40%);
+}
+
+html[data-theme="spring"] body.about-page { background: var(--about-bg); }
+html[data-theme="dark"] body.about-page { background: radial-gradient(circle at 86% 3%, rgb(94 167 121 / 12%), transparent 26rem), var(--about-bg); }
+html[data-theme="dark"] body.about-page :is(.about-brand > span, .about-system, .about-memory, .output-orbit strong) { background-color: #111f29; }
+html[data-theme="dark"] body.about-page :is(.about-hero-media img, .product-entry-media img) { filter: brightness(.84) saturate(.82); }
+.about-nav-tools { display: flex; align-items: center; gap: 24px; }
+
+html[data-theme="spring"] {
+  --book-ink: #12233f;
+  --book-muted: #5f7069;
+  --book-paper: #fbfff8;
+  --book-canvas: #f3f7f0;
+  --book-line: #c9d9c5;
+  --book-blue: #2f7d50;
+  --book-blue-soft: #e3f0dc;
+  --book-shadow: 0 24px 70px rgb(31 95 69 / 14%);
+}
+
+html[data-theme="dark"] {
+  --book-ink: #edf3f2;
+  --book-muted: #a7b5b2;
+  --book-paper: #16232d;
+  --book-canvas: #0d151d;
+  --book-line: #394853;
+  --book-blue: #81c570;
+  --book-blue-soft: #20392d;
+  --book-green: #81c570;
+  --book-green-soft: #20392d;
+  --book-lock: #25333d;
+  --book-shadow: 0 24px 70px rgb(0 0 0 / 38%);
+}
+
+html[data-theme="spring"] body.book-page,
+html[data-theme="spring"] body.book-page :is(.book-auth-shell, .book-shell) { background: var(--book-canvas); }
+html[data-theme="dark"] body.book-page,
+html[data-theme="dark"] body.book-page :is(.book-auth-shell, .book-shell) { color: var(--book-ink); background: var(--book-canvas); }
+html[data-theme="dark"] body.book-page :is(.book-auth-card, .book-auth-layout, .book-header, .book-goal-card, .book-meeting, .book-sheet, .book-booking-choice > button) {
+  border-color: var(--book-line);
+  color: var(--book-ink);
+  background: var(--book-paper);
+}
+html[data-theme="dark"] body.book-page :is(input, select, textarea) { border-color: var(--book-line); color: var(--book-ink); background: #1b2a35; }
+html[data-theme="dark"] body.book-page :is(button, input, select, textarea, summary, a):focus-visible { outline-color: rgb(129 197 112 / 62%); }
+
+@media (max-width: 680px) {
+  .theme-switcher button {
+    width: 44px;
+    height: 44px;
+    border-width: 8px;
+  }
+  .about-nav-tools { gap: 10px; }
+}
+
+@media print {
+  .theme-switcher { display: none !important; }
+}

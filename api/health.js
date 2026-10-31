@@ -2,7 +2,7 @@ import mcpHandler from "../server/mcp.js";
 
 export const maxDuration = 60;
 
-export default function handler(_request, response) {
+export default async function handler(_request, response) {
   if (_request.query?.view === "mcp") return mcpHandler(_request, response);
   const requiredBitableVariables = [
     "FEISHU_APP_ID",
@@ -27,6 +27,8 @@ export default function handler(_request, response) {
     persistence: configured ? "bitable-ready" : "local-only",
     booking: process.env.BOOKING_PASSCODE_HASH ? "ready" : "not-configured",
     mcp: process.env.BITABLE_MCP_TOKENS_TABLE_ID && process.env.AGENDA_SESSION_SECRET ? "ready" : "not-configured",
+    mcpAgendaWrite: process.env.BITABLE_MCP_AGENDA_CHANGES_TABLE_ID && process.env.MCP_AGENDA_WRITE_ENABLED === "true" ? "enabled" : "disabled",
+    mcpBookingWrite: process.env.BITABLE_MCP_AGENDA_CHANGES_TABLE_ID && process.env.MCP_BOOKING_WRITE_ENABLED === "true" ? "enabled" : "disabled",
     configuredAt: new Date().toISOString(),
   });
 }

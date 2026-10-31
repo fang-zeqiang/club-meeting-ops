@@ -74,7 +74,7 @@ test("role creation reuses active names and aliases before planning a Base row",
 
   assert.deepEqual(planRoleCreation(records, " toastmaster "), {
     created: false,
-    role: { name: "TME", aliases: ["Toastmaster"], sortOrder: 20 },
+    role: { name: "TME", aliases: ["Toastmaster"], sortOrder: 20, sopUrl: "" },
   });
   assert.deepEqual(planRoleCreation(records, "Workshop   Host"), {
     created: true,

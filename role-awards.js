@@ -17,6 +17,8 @@ export const ROLE_AWARD_POOLS = Object.freeze({
   functionalRole: Object.freeze(["timer", "grammarian", "ah_counter"]),
 });
 
+export const SHARING_MASTER_ROLE_ID = "custom:sharing_master";
+
 const byId = new Map(ROLE_DEFINITIONS.map((role) => [role.id, role]));
 const normalize = (value) => String(value || "").trim().toLocaleLowerCase().replace(/&/g, " and ").replace(/[^a-z0-9]+/g, " ").trim();
 const byAlias = new Map(ROLE_DEFINITIONS.flatMap((role) => role.aliases.map((alias) => [normalize(alias), role])));
@@ -39,9 +41,29 @@ export function roleLabel(roleId, fallback = "") {
   return byId.get(roleId)?.label || String(fallback || roleId).replace(/^custom:/, "").replaceAll("_", " ");
 }
 
-export function roleAwardConfig(votingForm = {}) {
-  const raw = votingForm?.roleAwardConfig?.roleTakerRoleIds || votingForm?.roleTakerRoleIds || [];
-  return { roleTakerRoleIds: [...new Set((Array.isArray(raw) ? raw : []).map(String).filter(Boolean))] };
+export function roleAwardConfig(votingForm = {}, availableRoles = []) {
+  const current = votingForm?.roleAwardConfig?.roleTakerRoleIds;
+  const legacy = votingForm?.roleTakerRoleIds;
+  const raw = Array.isArray(current)
+    ? current
+    : Array.isArray(legacy)
+      ? legacy : [];
+  const sharingMasterAvailable = availableRoles.some(({ id }) => id === SHARING_MASTER_ROLE_ID);
+  const sharingMasterDefaultOptOut = votingForm?.roleAwardConfig?.sharingMasterDefaultOptOut === true;
+  const roleTakerRoleIds = [...new Set(raw.map(String).filter(Boolean))]
+    .filter((id) => id !== SHARING_MASTER_ROLE_ID || sharingMasterAvailable);
+  return { roleTakerRoleIds, sharingMasterDefaultOptOut };
+}
+
+export function setRoleTakerExtension(votingForm, availableRoles, roleId, checked) {
+  const config = roleAwardConfig(votingForm, availableRoles);
+  const next = new Set(config.roleTakerRoleIds);
+  if (checked) next.add(roleId);
+  else next.delete(roleId);
+  return {
+    roleTakerRoleIds: [...next],
+    sharingMasterDefaultOptOut: roleId === SHARING_MASTER_ROLE_ID ? !checked : config.sharingMasterDefaultOptOut,
+  };
 }
 
 export function recognitionAwardConfig(votingForm = {}) {
@@ -66,7 +88,7 @@ export function roleEntries(meeting) {
 export function roleAwardIssues(meeting) {
   const entries = roleEntries(meeting);
   const available = new Set(entries.map((role) => role.id));
-  const configured = roleAwardConfig(meeting.votingForm).roleTakerRoleIds;
+  const configured = roleAwardConfig(meeting.votingForm, entries).roleTakerRoleIds;
   const fixed = new Map([
     ...ROLE_AWARD_POOLS.roleTaker.map((id) => [id, "Best Role Taker"]),
     ...ROLE_AWARD_POOLS.facilitator.map((id) => [id, "Best Facilitator"]),

@@ -169,7 +169,7 @@ def main():
         if not items_id:
             print("ERROR: --items-only requires BITABLE_ITEMS_TABLE_ID.", file=sys.stderr)
             sys.exit(1)
-        for field_name in ("speech_objective", "evaluator_status", "role_assignment_id", "linked_speech_id", "pathways_mode", "pathways_path", "pathways_level", "pathways_project_id", "pathways_form_id", "external_presentation_url", "meeting_id", "block_id"):
+        for field_name in ("speech_objective", "evaluator_status", "role_assignment_id", "presentation_phase", "linked_speech_id", "pathways_mode", "pathways_path", "pathways_level", "pathways_project_id", "pathways_form_id", "external_presentation_url", "meeting_id", "block_id"):
             ensure_field(app_token, items_id, token, field_name)
         return
 
@@ -180,7 +180,7 @@ def main():
     if not items_id:
         print("ERROR: Items table not found; set BITABLE_ITEMS_TABLE_ID.", file=sys.stderr)
         sys.exit(1)
-    for field_name in ("speech_objective", "evaluator_status", "role_assignment_id", "linked_speech_id", "pathways_mode", "pathways_path", "pathways_level", "pathways_project_id", "pathways_form_id", "external_presentation_url", "meeting_id", "block_id"):
+    for field_name in ("speech_objective", "evaluator_status", "role_assignment_id", "presentation_phase", "linked_speech_id", "pathways_mode", "pathways_path", "pathways_level", "pathways_project_id", "pathways_form_id", "external_presentation_url", "meeting_id", "block_id"):
         ensure_field(app_token, items_id, token, field_name)
 
     meetings_id = os.environ.get("BITABLE_MEETINGS_TABLE_ID") or tables.get("Meetings")
@@ -188,6 +188,10 @@ def main():
         print("ERROR: Meetings table not found; set BITABLE_MEETINGS_TABLE_ID.", file=sys.stderr)
         sys.exit(1)
     ensure_field(app_token, meetings_id, token, "table_topics_speakers_json")
+    ensure_field(app_token, meetings_id, token, "table_topics_entries_json")
+    ensure_field(app_token, meetings_id, token, "current_table_topics_entry_id")
+    for field_name in ("wod_word", "wod_pronunciation", "wod_part_of_speech", "wod_definition", "wod_usage", "wod_example"):
+        ensure_field(app_token, meetings_id, token, field_name)
     ensure_field(app_token, meetings_id, token, "voting_qr_source")
     ensure_field(app_token, meetings_id, token, "voting_form_json")
     ensure_field(app_token, meetings_id, token, "system_voting_qr_image", "attachment")
@@ -238,6 +242,21 @@ def main():
         print(f"DivisionTemplateVersions table_id: {versions_id}")
     else:
         print(f"DivisionTemplateVersions already exists, table_id: {tables['DivisionTemplateVersions']}")
+
+    audit_id = os.environ.get("BITABLE_MCP_AGENDA_CHANGES_TABLE_ID") or tables.get("MCP Agenda Changes")
+    if not audit_id:
+        print("Creating MCP Agenda Changes table...")
+        audit_id = create_table(app_token, token, "MCP Agenda Changes")
+    for field_name in (
+        "operation_id", "proposal_hash", "principal_id", "principal_name", "meeting_id",
+        "operation_types", "changes_json", "inverse_json", "created_role_json",
+        "url_check_json", "result_json", "status", "error_code", "error_message",
+        "created_at", "completed_at", "recovered_at",
+    ):
+        ensure_field(app_token, audit_id, token, field_name)
+    for field_name in ("meeting_number", "before_revision", "after_revision"):
+        ensure_field(app_token, audit_id, token, field_name, "number")
+    print(f"MCP Agenda Changes table_id: {audit_id}")
 
 if __name__ == "__main__":
     main()

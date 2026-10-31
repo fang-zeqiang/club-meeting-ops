@@ -75,7 +75,7 @@ export function roleCatalogFromRecords(records, { includeInactive = false } = {}
 }
 
 function agendaRole(role) {
-  return { name: role.name, aliases: role.aliases, sortOrder: role.sortOrder };
+  return { name: role.name, aliases: role.aliases, sortOrder: role.sortOrder, sopUrl: role.sopUrl };
 }
 
 export function planRoleCreation(records, value) {

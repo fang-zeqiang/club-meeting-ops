@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getPreparedSpeeches, syncLinkedAgendaItems } from "../meeting-helpers.js";
+import { getPreparedSpeeches, getSpeechObjectiveDensityClass, syncLinkedAgendaItems } from "../meeting-helpers.js";
 
 test("returns speech items from prepared-speech blocks in agenda order", () => {
   const first = { id: "first", kind: "speech" };
@@ -18,6 +18,15 @@ test("returns speech items from prepared-speech blocks in agenda order", () => {
 
 test("returns an empty list when no prepared speeches are scheduled", () => {
   assert.deepEqual(getPreparedSpeeches({ blocks: [{ type: "opening", items: [] }] }), []);
+});
+
+test("speech objective density class tracks PS count (107 期马拉松场景为 5+)", () => {
+  assert.equal(getSpeechObjectiveDensityClass(0), "");
+  assert.equal(getSpeechObjectiveDensityClass(2), "");
+  assert.equal(getSpeechObjectiveDensityClass(3), "speech-objective-density-compact");
+  assert.equal(getSpeechObjectiveDensityClass(4), "speech-objective-density-tight");
+  assert.equal(getSpeechObjectiveDensityClass(5), "speech-objective-density-overflow objectives-overflow-risk");
+  assert.equal(getSpeechObjectiveDensityClass(8), "speech-objective-density-overflow objectives-overflow-risk");
 });
 
 test("functional Intro and Report assignments sync both ways with legacy role ids", () => {
