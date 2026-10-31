@@ -217,7 +217,8 @@ export async function downloadChatGptFile(file, fileName) {
     throw new ApiError(400, "INVALID_FILE_REFERENCE", "Attachment URL is not an approved OpenAI file URL.");
   }
   if (Number(file.size || 0) > MCP_MAX_UPLOAD_BYTES) throw new ApiError(413, "IMAGE_TOO_LARGE", "Image exceeds 4 MiB.");
-  const approvedUrl = new URL(`${url.pathname}${url.search}`, "https://files.oaiusercontent.com");
+  // 用固定前缀拼接而不是 new URL(path, base)：以 // 开头的 path 会被解析成另一个主机
+  const approvedUrl = `https://files.oaiusercontent.com/${url.pathname.replace(/^\/+/, "")}${url.search}`;
   const response = await fetch(approvedUrl, { redirect: "error" });
   if (!response.ok) throw new ApiError(502, "FILE_DOWNLOAD_FAILED", "Could not download the ChatGPT attachment.");
   const declaredLength = Number(response.headers.get("content-length") || 0);

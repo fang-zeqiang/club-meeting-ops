@@ -660,6 +660,17 @@ test("ChatGPT fileParams accepts bounded OpenAI downloads and rejects other host
   );
 });
 
+test("ChatGPT downloads keep the OpenAI host even when the path starts with //", async () => {
+  const requested = [];
+  global.fetch = async (url) => {
+    requested.push(new URL(url));
+    return new Response(new Uint8Array([1]), { status: 200, headers: { "Content-Type": "image/png" } });
+  };
+  await downloadChatGptFile({ download_url: "https://files.oaiusercontent.com//evil.example/file?sig=1", size: 1 }, "poster.png");
+  assert.equal(requested[0].hostname, "files.oaiusercontent.com");
+  assert.equal(requested[0].search, "?sig=1");
+});
+
 test("recent meetings reuse Agenda ordering and return at most next plus two nearby", () => {
   const meetings = [
     { meetingNumber: 105, date: "2026-08-20", startTime: "18:00", theme: "Later", status: "draft" },

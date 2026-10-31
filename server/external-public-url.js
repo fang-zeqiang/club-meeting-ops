@@ -23,7 +23,8 @@ function providerRequestUrl(url, provider) {
     : provider === "feishu" ? "https://feishu.cn"
       : null;
   if (!origin) throw new ApiError(400, "EXTERNAL_URL_SSRF_BLOCKED", "External URL provider is not approved for server-side checks.");
-  return new URL(`${url.pathname}${url.search}`, origin);
+  // 固定前缀拼接：new URL(path, base) 会把以 // 开头的 path 解析成另一个主机
+  return new URL(`${origin}/${url.pathname.replace(/^\/+/, "")}${url.search}`);
 }
 
 function ipv4Number(address) {

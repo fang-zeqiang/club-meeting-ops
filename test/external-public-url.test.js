@@ -91,3 +91,14 @@ test("pinned lookup works with Node autoSelectFamily (lookup called with all: tr
   const single = await new Promise((resolve) => pinnedLookup({ address: "8.8.8.8", family: 4 })("x", {}, (...args) => resolve(args)));
   assert.deepEqual(single, [null, "8.8.8.8", 4]);
 });
+
+test("provider checks stay on the provider host when the path starts with //", async () => {
+  const lookedUp = [];
+  const fetched = [];
+  await checkExternalPublicUrl("https://docs.qq.com//evil.example/slide", {
+    lookup: async (hostname) => { lookedUp.push(hostname); return [{ address: "8.8.8.8", family: 4 }]; },
+    fetchImpl: async (url) => { fetched.push(new URL(url).hostname); return new Response("<title>腾讯文档</title>", { status: 200 }); },
+  });
+  assert.deepEqual([...new Set(lookedUp)], ["docs.qq.com"]);
+  assert.deepEqual(fetched, ["docs.qq.com"]);
+});
