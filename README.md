@@ -62,6 +62,46 @@ Preview mode uses fictional data, skips sign-in, and performs no Base writes.
 - Review meeting readiness, risks, and post-meeting quality.
 - Read meeting state through MCP; manage Draft Agenda edits, role bookings, Table Topics, and Word of the Day with explicit authorization, confirmation, audit, and revision checks.
 
+## Agent skills
+
+`skills/` holds instructions that teach an agent how to use this app's MCP
+tools safely. They contain no credentials or club data, and they only work
+with an agent that is connected to your deployment's MCP server.
+
+| Skill | Use it to |
+| --- | --- |
+| `agenda-editor` | Edit one meeting's Agenda through `vpe_change_agenda`, confirm risky changes, and read the result back. |
+| `role-booking` | Query and manage role bookings, member goals, speech details, and booking history. |
+| `meeting-manager` | Help a Meeting Manager run one meeting from the Role Book MM SOP: today's tasks, the dated timeline, and a calendar (.ics) export. |
+| `member-growth` | Track one member's Pathways progress and plan their next meeting, role, and project. |
+| `vpe-planning` | Plan the next several meetings with the VPE: theme and format, guest, Sharing lead, and Meeting Manager rotation. |
+
+1. Connect your agent to `https://<your-domain>/api/mcp` with an MCP token
+   (Bearer) or the OAuth flow your client supports.
+2. Install the skills with the [`skills`](https://github.com/vercel-labs/skills)
+   CLI. It installs into the current project; add `-g` for every project, and
+   `-a <agent>` to target one agent such as `claude-code`. Replace `<owner>`
+   with the GitHub owner of this repository or your fork.
+
+   ```bash
+   npx skills add <owner>/club-meeting-ops                       # pick from the list
+   npx skills add <owner>/club-meeting-ops --skill vpe-planning  # one skill
+   ```
+
+   Or copy the folders by hand, for example into Claude Code's skills folder:
+
+   ```bash
+   git clone --depth 1 https://github.com/<owner>/club-meeting-ops.git
+   mkdir -p ~/.claude/skills && cp -R club-meeting-ops/skills/* ~/.claude/skills/
+   ```
+
+   For a client without skill folders, paste the `SKILL.md` you need into its
+   project instructions.
+
+Skills never authorize writes on their own. Agenda and booking writes still
+need an explicit command in the conversation and the server-side write flags
+described in [Security](#security).
+
 ## Architecture
 
 ```text
