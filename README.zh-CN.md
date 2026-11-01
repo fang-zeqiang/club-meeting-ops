@@ -38,6 +38,37 @@ Preview 只使用虚构数据，不登录、不写 Base。
 - 检查会前风险并完成会后质量复盘。
 - 通过 MCP 读取会议；Draft Agenda 修改、角色预约、即兴话题和每日一词受显式授权、确认、审计与版本检查保护。
 
+## Agent Skills
+
+`skills/` 里是教 Agent 安全使用本应用 MCP 工具的说明文件，不含任何凭证或俱乐部数据。Agent 需要先连上你部署的 MCP 服务，skill 才有用。
+
+| Skill | 用途 |
+| --- | --- |
+| `agenda-editor` | 通过 `vpe_change_agenda` 修改单场会议 Agenda，高风险改动先确认，改完回读核对。 |
+| `role-booking` | 查询和管理角色预约、成员目标、演讲信息和预约历史。 |
+| `meeting-manager` | 按 Role Book 里的 MM SOP 帮 Meeting Manager 办好一场会：今天该做什么、带日期的时间线、导出日历（.ics）。 |
+| `member-growth` | 跟踪单个成员的 Pathways 进度，规划下一场会议、角色和项目。 |
+| `vpe-planning` | 和 VPE 一起规划未来几期会议：主题与形式、嘉宾、Sharing 负责人、Meeting Manager 轮换。 |
+
+1. 让 Agent 连接 `https://<你的域名>/api/mcp`，使用 MCP Token（Bearer）或客户端支持的 OAuth。
+2. 用 [`skills`](https://github.com/vercel-labs/skills) CLI 安装。默认装到当前项目；加 `-g` 对所有项目生效，加 `-a <agent>` 指定 Agent，例如 `claude-code`。`<owner>` 换成本仓库或你 fork 的 GitHub 所有者。
+
+   ```bash
+   npx skills add <owner>/club-meeting-ops                       # 从列表中选择
+   npx skills add <owner>/club-meeting-ops --skill vpe-planning  # 只装一个
+   ```
+
+   也可以手动复制目录，例如放进 Claude Code 的 skills 目录：
+
+   ```bash
+   git clone --depth 1 https://github.com/<owner>/club-meeting-ops.git
+   mkdir -p ~/.claude/skills && cp -R club-meeting-ops/skills/* ~/.claude/skills/
+   ```
+
+   不支持 skill 目录的客户端，把需要的 `SKILL.md` 内容贴进项目指令即可。
+
+Skill 本身不构成写入授权。Agenda 和角色预约的写入仍需要对话中的明确指令，以及[安全边界](#安全边界)中说明的服务端写入开关。
+
 ## 架构
 
 ```text
