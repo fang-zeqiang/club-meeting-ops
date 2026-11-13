@@ -67,6 +67,15 @@ Preview 只使用虚构数据，不登录、不写 Base。
 
    不支持 skill 目录的客户端，把需要的 `SKILL.md` 内容贴进项目指令即可。
 
+3. 本仓库更新 skill 后，按当初的安装方式更新：
+
+   ```bash
+   npx skills update                 # 更新全部已安装的 skill；全局安装的加 -g
+   npx skills update member-growth   # 只更新一个
+   ```
+
+   手动复制的，重新 clone 后覆盖旧目录；贴进项目指令的，换成新版 `SKILL.md`。skill 可能会提到本仓库服务端尚未提供的工具，例如 `member-growth` 里的 `vpe_get_member_growth_plan`、`vpe_get_member_period_review`。更新部署并不会带来这些工具；在后续服务端版本提供之前，Agent 会提示该功能不可用。
+
 Skill 本身不构成写入授权。Agenda 和角色预约的写入仍需要对话中的明确指令，以及[安全边界](#安全边界)中说明的服务端写入开关。
 
 ## 架构
