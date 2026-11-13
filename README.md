@@ -98,6 +98,19 @@ with an agent that is connected to your deployment's MCP server.
    For a client without skill folders, paste the `SKILL.md` you need into its
    project instructions.
 
+3. Update the skills when this repository changes them. Use the same route you
+   installed with:
+
+   ```bash
+   npx skills update                 # every installed skill; add -g for global ones
+   npx skills update member-growth   # one skill
+   ```
+
+   If you copied the folders by hand, clone again and copy them over the old
+   ones. If you pasted a `SKILL.md` into project instructions, paste the new
+   version. A skill can mention a tool that your deployment does not serve yet;
+   update the deployment too, or the agent will say the tool is unavailable.
+
 Skills never authorize writes on their own. Agenda and booking writes still
 need an explicit command in the conversation and the server-side write flags
 described in [Security](#security).
