@@ -22,7 +22,7 @@ Use this when the user asks about the whole club or a group ("各个会员的进
 - Call `vpe_get_member_growth_plan` once per member and report one row each: name, primary Path, target Level (baseline + 1), progress, evidence.
 - Group by speeches left at the target Level ("likely ready to submit" = 0, then 1, then 2, …), not by gap count. Show the groups the user asked for; put everyone else on one "其他" line with their count, and members without a Path basis on another.
 - Flag, don't settle, conflicts the server cannot see: a display-name suffix (for example "PM2", "MS5/EH2") that disagrees with `官网缩写` or with the baseline. Ask the VPE which is right, or suggest running Pathways sync, before grouping that member.
-- Also flag, without relabeling: speeches delivered above the target Level (the baseline is probably out of date), and the same project delivered twice (probably a mis-tag).
+- Also flag, without relabeling: speeches delivered above the target Level (the baseline is probably out of date), and the same project delivered twice, except Evaluation and Feedback, which takes two speeches (likely a mis-tag).
 - Ask every Path question (`pathSource: none`, `multipleActivePaths`, conflicts) in one numbered round, not one member at a time.
 - Note booked future speeches without a Pathways project as open items: they may move a member to another group once filled in.
 

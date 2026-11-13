@@ -108,8 +108,11 @@ with an agent that is connected to your deployment's MCP server.
 
    If you copied the folders by hand, clone again and copy them over the old
    ones. If you pasted a `SKILL.md` into project instructions, paste the new
-   version. A skill can mention a tool that your deployment does not serve yet;
-   update the deployment too, or the agent will say the tool is unavailable.
+   version. A skill can mention a tool that this repository's server does not
+   ship yet, such as `vpe_get_member_growth_plan` or
+   `vpe_get_member_period_review` in `member-growth`. Updating your deployment
+   does not add those tools; until a later server release does, the agent says
+   the feature is unavailable.
 
 Skills never authorize writes on their own. Agenda and booking writes still
 need an explicit command in the conversation and the server-side write flags
